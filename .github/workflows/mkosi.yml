@@ -18,6 +18,8 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
+      - name: Install dependencies
+        run: sudo apt-get install -y --no-install-recommends acpica-tools uuid-dev gcc-aarch64-linux-gnu gcc make patch build-essential git
       - name: Generate secure boot key
         run: mkosi --debug genkey
       - name: Show image summary
