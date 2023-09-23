@@ -28,5 +28,5 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: disk-image
-          path: ubuntu-jammy.img.xz
+          path: ubuntu-jammy.raw.xz
           retention-days: 5
