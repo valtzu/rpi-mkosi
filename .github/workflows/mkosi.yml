@@ -9,7 +9,7 @@ permissions:
   contents: read
   pull-requests: read
 jobs:
-  check-links:
+  build-image:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
@@ -24,3 +24,9 @@ jobs:
         run: mkosi summary
       - name: Build
         run: mkosi --debug
+      - name: 'Upload Artifact'
+        uses: actions/upload-artifact@v3
+        with:
+          name: disk-image
+          path: ubuntu-jammy.img.xz
+          retention-days: 5
