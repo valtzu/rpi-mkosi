@@ -36,7 +36,6 @@ Vagrant.configure("2") do |config|
 
     for BINARY in "${BINARIES[@]}"; do
       sudo -u vagrant ln -svf /home/vagrant/systemd/build/$BINARY /home/vagrant/.local/bin/$BINARY
-      sudo -u vagrant $BINARY --version
     done
     echo "cd /vagrant" >> /home/vagrant/.bashrc
     SETUP
