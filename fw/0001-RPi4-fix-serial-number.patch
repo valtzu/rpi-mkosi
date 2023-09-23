@@ -1,0 +1,13 @@
+diff --git a/Platform/RaspberryPi/Drivers/RpiFirmwareDxe/RpiFirmwareDxe.c b/Platform/RaspberryPi/Drivers/RpiFirmwareDxe/RpiFirmwareDxe.c
+index 4edec0ad..984083f7 100644
+--- a/Platform/RaspberryPi/Drivers/RpiFirmwareDxe/RpiFirmwareDxe.c
++++ b/Platform/RaspberryPi/Drivers/RpiFirmwareDxe/RpiFirmwareDxe.c
+@@ -340,7 +340,7 @@ RpiFirmwareGetMacAddress (
+   return EFI_SUCCESS;
+ }
+ 
+-#pragma pack()
++#pragma pack(1)
+ typedef struct {
+   UINT64                    Serial;
+ } RPI_FW_SERIAL_TAG;

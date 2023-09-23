@@ -1,0 +1,36 @@
+diff --git a/Platform/RaspberryPi/Drivers/FdtDxe/FdtDxe.c b/Platform/RaspberryPi/Drivers/FdtDxe/FdtDxe.c
+index cbbc2ad..c6c9e2b 100644
+--- a/Platform/RaspberryPi/Drivers/FdtDxe/FdtDxe.c
++++ b/Platform/RaspberryPi/Drivers/FdtDxe/FdtDxe.c
+@@ -375,31 +375,6 @@ SyncPcie (
+     return EFI_NOT_FOUND;
+   }
+ 
+-  /*
+-   * Now that we are always running without DMA translation, and with a 3G
+-   * limit, there shouldn't be a need to reset/reload the XHCI. The
+-   * possible problem is that the PCIe root port is itself being reset (by
+-   * Linux+DT). The RPi foundation claims this is needed as a pre-req to
+-   * reloading the XHCI firmware, which also implies that a PCI fundamental
+-   * reset should cause the XHCI itself to reset.  This isn't happening
+-   * fully, otherwise reloading the firmware would be mandatory. As it is,
+-   * recent kernels actually start to have problems following the XHCI
+-   * reset notification mailbox!  Instead lets stop the kernel from
+-   * triggering the mailbox by removing the node.
+-   */
+-
+-  Node = fdt_path_offset (mFdtImage, "/scb/pcie@7d500000/pci");
+-  if (Node < 0) {
+-    // This can happen on CM4/etc which doesn't have an onboard XHCI
+-    DEBUG ((DEBUG_INFO, "%a: failed to locate /scb/pcie@7d500000/pci\n", __FUNCTION__));
+-  } else {
+-    Retval = fdt_del_node (mFdtImage, Node);
+-    if (Retval != 0) {
+-      DEBUG ((DEBUG_ERROR, "Failed to remove /scb/pcie@7d500000/pci\n"));
+-      return EFI_NOT_FOUND;
+-    }
+-  }
+-
+ #endif
+   return EFI_SUCCESS;
+ }

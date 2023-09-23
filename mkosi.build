@@ -1,0 +1,59 @@
+#!/bin/bash
+
+set -ex
+
+sha1sum --ignore-missing --quiet -c <(echo 207fcb4f6e29e5d4ec4d01f71063fd5401279d2b ./rpi-update) || \
+  (curl -L https://raw.githubusercontent.com/raspberrypi/rpi-update/ff9cc42ea10aef2c39b8c5cf629a23eaba8660e1/rpi-update > ./rpi-update && chmod u+x ./rpi-update)
+
+WORK_PATH=/tmp/rpi-update \
+BOOT_PATH=$DESTDIR/efi \
+ROOT_PATH=$DESTDIR/usr \
+WANT_64BIT=1 \
+WANT_PI4=1 \
+SKIP_CHECK_PARTITION=1 \
+SKIP_BACKUP=1 \
+SKIP_WARNING=1 \
+PRUNE_MODULES=1 \
+SKIP_KERNEL=0 \
+SKIP_FIRMWARE=0 \
+UPDATE_SELF=0 \
+./rpi-update rpi-6.5.y:bcm2711_arm64
+
+kver=$(basename $DESTDIR/usr/lib/modules/*-v8+)
+
+mv $DESTDIR/efi/kernel8.img $DESTDIR/usr/lib/modules/$kver/vmlinuz
+
+#cp $workdir/boot/start4.elf $DESTDIR/efi/start4.elf
+#cp $workdir/boot/fixup4.dat $DESTDIR/efi/fixup4.dat
+#cp $workdir/boot/kernel8.img $DESTDIR/boot/vmlinuz-$kver
+#cp -r $workdir/modules/$kver $DESTDIR/usr/lib/modules/
+
+
+if ! [ -d $BUILDDIR/rpi4-edk2 ] ; then
+  git clone --depth=10 --recursive -j8 https://github.com/pftf/RPi4.git $BUILDDIR/rpi4-edk2
+  patch --binary -d $BUILDDIR/rpi4-edk2/edk2 patch -i $BUILDDIR/rpi4-edk2/0001-MdeModulePkg-UefiBootManagerLib-Signal-ReadyToBoot-o.patch
+  patch --binary -d $BUILDDIR/rpi4-edk2/edk2-platforms -i $BUILDDIR/rpi4-edk2/0002-Check-for-Boot-Discovery-Policy-change.patch
+  patch --binary -d $BUILDDIR/rpi4-edk2/edk2-platforms -i $SRCDIR/fw/0001-RPi4-fix-serial-number.patch
+  patch --binary -d $BUILDDIR/rpi4-edk2/edk2-platforms -i $SRCDIR/fw/0002-RPi4-fix-usb-on-recent-kernels.patch
+fi
+
+if ! [ -f $BUILDDIR/rpi4-edk2-build/Build/RPi4/RELEASE_GCC5/FV/RPI_EFI.fd ] ; then
+  export WORKSPACE=$BUILDDIR/rpi4-edk2-build
+  export PACKAGES_PATH=$BUILDDIR/rpi4-edk2/edk2:$BUILDDIR/rpi4-edk2/edk2-platforms:$BUILDDIR/rpi4-edk2/edk2-non-osi
+  export GCC5_AARCH64_PREFIX=aarch64-linux-gnu-
+  make -C $BUILDDIR/rpi4-edk2/edk2/BaseTools
+  source $BUILDDIR/rpi4-edk2/edk2/edksetup.sh
+  build -a AARCH64 -t GCC5 -b RELEASE \
+    --silent \
+    -p $BUILDDIR/rpi4-edk2/edk2-platforms/Platform/RaspberryPi/RPi4/RPi4.dsc \
+    --pcd gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVendor=L"EDK2" \
+    --pcd gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString=L"UEFI Firmware" \
+    --pcd PcdPlatformBootTimeOut=0 \
+    --pcd PcdRamLimitTo3GB=0 \
+    --pcd PcdRamMoreThan3GB=1 \
+    --pcd PcdSystemTableMode=2 \
+    -D NETWORK_ENABLE=FALSE
+fi
+
+cp -f $BUILDDIR/rpi4-edk2-build/Build/RPi4/RELEASE_GCC5/FV/RPI_EFI.fd $DESTDIR/efi/RPI_EFI.fd
+
