@@ -38,5 +38,6 @@ kver=$(basename $DESTDIR/usr/lib/modules/*-v8+)
 
 mv $DESTDIR/efi/kernel8.img $DESTDIR/usr/lib/modules/$kver/vmlinuz
 
-curl -L 'https://github.com/valtzu/rpi-efi-firmware/releases/download/0.1.0/RPI_EFI.fd' > $DESTDIR/efi/RPI_EFI.fd
+curl --fail -L 'https://github.com/valtzu/rpi-efi-firmware/releases/download/0.1.1/RPI_EFI.fd' -o $DESTDIR/efi/RPI_EFI.fd
+
 
