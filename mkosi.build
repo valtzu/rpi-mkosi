@@ -32,7 +32,7 @@ PRUNE_MODULES=1 \
 SKIP_KERNEL=0 \
 SKIP_FIRMWARE=1 \
 UPDATE_SELF=0 \
-$RPI_UPDATE rpi-6.5.y:bcm2711_arm64
+$RPI_UPDATE rpi-6.1.y:bcm2711_arm64
 
 kver=$(basename $DESTDIR/usr/lib/modules/*-v8+)
 
