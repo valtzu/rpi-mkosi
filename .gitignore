@@ -1,3 +1,4 @@
 /.vagrant/
 /.idex/
-
+/*.raw
+/*.raw.xz
