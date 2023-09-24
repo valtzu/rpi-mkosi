@@ -36,7 +36,8 @@ $RPI_UPDATE rpi-6.1.y:bcm2711_arm64
 
 kver=$(basename $DESTDIR/usr/lib/modules/*-v8+)
 
-mv $DESTDIR/efi/kernel8.img $DESTDIR/usr/lib/modules/$kver/vmlinuz
+zcat $DESTDIR/efi/kernel8.img > $DESTDIR/usr/lib/modules/$kver/vmlinuz
+rm $DESTDIR/efi/kernel8.img
 
 curl --fail -L 'https://github.com/valtzu/rpi-efi-firmware/releases/download/0.1.1/RPI_EFI.fd' -o $DESTDIR/efi/RPI_EFI.fd
 
