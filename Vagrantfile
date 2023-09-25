@@ -5,8 +5,7 @@ Vagrant.configure("2") do |config|
     echo "deb-src http://archive.ubuntu.com/ubuntu/ $(lsb_release -cs) main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list
     apt-get update
     apt-get install -y --no-install-recommends python3 python3-pip python-is-python3 python3-pyelftools python3-pefile pipx \
-      qemu-user-static bubblewrap dosfstools mtools uidmap libfdisk-dev libtss2-dev \
-      acpica-tools uuid-dev gcc-aarch64-linux-gnu gcc make patch build-essential git
+      qemu-user-static bubblewrap dosfstools mtools uidmap libfdisk-dev libtss2-dev
     apt-get build-dep -y systemd
     sudo -u vagrant pipx ensurepath
     sudo -u vagrant pipx install git+https://github.com/systemd/mkosi.git@v17.1
@@ -37,8 +36,8 @@ Vagrant.configure("2") do |config|
     for BINARY in "${BINARIES[@]}"; do
       sudo -u vagrant ln -svf /home/vagrant/systemd/build/$BINARY /home/vagrant/.local/bin/$BINARY
     done
-    echo "cd /vagrant" >> /home/vagrant/.bashrc
+    sudo -u vagrant mkdir -p /home/vagrant/build
+    echo "rsync -r --exclude=.git --exclude=.vagrant /vagrant/ /home/vagrant/build" >> /home/vagrant/.bashrc
+    echo "cd /home/vagrant/build" >> /home/vagrant/.bashrc
     SETUP
-  config.vm.synced_folder ".", "/vagrant", type: "rsync",
-    rsync__exclude: ".git/"
 end
