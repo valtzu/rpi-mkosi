@@ -1,4 +1,8 @@
 Vagrant.configure("2") do |config|
+  config.vm.provider "virtualbox" do |v|
+    v.memory = 8096
+    v.cpus = 2
+  end
   config.vm.define "vagrant"
   config.vm.box = "ubuntu/lunar64"
   config.vm.provision:shell, inline: <<-SETUP

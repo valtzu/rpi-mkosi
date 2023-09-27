@@ -29,5 +29,5 @@ rm -rf $BUILDROOT/efi/kernel8.img
 
 curl --fail -L 'https://github.com/valtzu/rpi-efi-firmware/releases/download/0.1.1/RPI_EFI.fd' -o $BUILDROOT/efi/RPI_EFI.fd
 
-mkdir -p $BUILDROOT/usr/share/factory/mkosi
-mv -T $BUILDROOT/etc $BUILDROOT/usr/share/factory/mkosi/etc
+mkdir -p $BUILDROOT/usr/share/factory
+cp --archive --recursive --no-target-directory --reflink=auto "$BUILDROOT"/etc "$BUILDROOT"/usr/share/factory/mkosi
