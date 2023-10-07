@@ -2,32 +2,5 @@
 
 set -ex
 
-RPI_UPDATE=$BUILDROOT/usr/bin/rpi-update
-
-sha1sum --ignore-missing --quiet -c <(echo 207fcb4f6e29e5d4ec4d01f71063fd5401279d2b $RPI_UPDATE) || \
-  (curl -L https://raw.githubusercontent.com/raspberrypi/rpi-update/ff9cc42ea10aef2c39b8c5cf629a23eaba8660e1/rpi-update > $RPI_UPDATE && chmod u+x $RPI_UPDATE)
-
-rpi_update() {
-  BOOT_PATH=$BUILDROOT/efi \
-  ROOT_PATH=$BUILDROOT/usr \
-  WANT_64BIT=1 \
-  WANT_PI4=1 \
-  SKIP_CHECK_PARTITION=1 \
-  SKIP_BACKUP=1 \
-  SKIP_WARNING=1 \
-  UPDATE_SELF=0 \
-  $RPI_UPDATE $@
-}
-
-WORK_PATH=/tmp/rpi-update-fw SKIP_KERNEL=0 SKIP_FIRMWARE=0 rpi_update master
-#WORK_PATH=/tmp/rpi-update-kernel SKIP_KERNEL=0 SKIP_FIRMWARE=1 rpi_update rpi-6.1.y:bcm2711_arm64
-
-kver=$(basename $BUILDROOT/usr/lib/modules/*-v8+)
-
-zcat $BUILDROOT/efi/kernel8.img > $BUILDROOT/usr/lib/modules/$kver/vmlinuz
-rm -rf $BUILDROOT/efi/kernel8.img
-
-curl --fail -L 'https://github.com/valtzu/rpi-efi-firmware/releases/download/0.1.1/RPI_EFI.fd' -o $BUILDROOT/efi/RPI_EFI.fd
-
 mkdir -p $BUILDROOT/usr/share/factory
 cp --archive --recursive --no-target-directory --reflink=auto "$BUILDROOT"/etc "$BUILDROOT"/usr/share/factory/mkosi
