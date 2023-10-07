@@ -19,17 +19,30 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
-      - name: Generate secure boot key
-        run: mkosi --debug genkey
+#      - name: Generate secure boot key
+#        run: mkosi --debug genkey
       - name: Show image summary
         run: mkosi summary
       - name: Build
-        run: mkosi --debug
-      - name: Upload release artifacts
-        uses: svenstaro/upload-release-action@v2
+        run: mkosi --debug --image-version=${{ github.ref_name }}
+      - name: Compress Unified Kernel Image
+        run: xz -k mkosi.output/system_*.efi
+      - name: Calculate checksums
+        run: >
+          sha256sum
+            mkosi.output/system_*.raw.xz
+            mkosi.output/system_*.usr-*.raw.xz
+            mkosi.output/system_*.efi.xz
+          > SHA256SUMS
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          promote: true
-          file: ubuntu-lunar.raw.xz
-
-
-
+          draft: true
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          files: |
+            mkosi.output/system_*.raw.xz
+            mkosi.output/system_*.usr-*.raw.xz
+            mkosi.output/system_*.efi.xz
+            SHA256SUMS
