@@ -1,0 +1,17 @@
+# See https://github.com/systemd/systemd/blob/main/mkosi.presets/base/mkosi.extra/usr/lib/systemd/system-preset/00-mkosi.preset
+
+# Pulled in via dracut-network by kexec-tools on Fedora.
+disable NetworkManager*
+
+# Make sure dbus-broker is started by default on Debian/Ubuntu.
+enable dbus-broker.service
+
+# systemd-networkd is disabled by default on Fedora so make sure it is enabled.
+enable systemd-networkd.service
+enable systemd-networkd-wait-online.service
+
+# We have journald to receive audit data so let's make sure we're not running auditd as well
+disable auditd.service
+
+# systemd-timesyncd is not enabled by default in the default systemd preset so enable it here instead.
+enable systemd-timesyncd.service
