@@ -30,7 +30,7 @@ jobs:
       - name: Build images
         run: mkosi --image-version=${{ github.ref_name }}
       - name: Rename SHA256SUMS
-        run: mv mkosi.output/system_*.SHA256SUMS mkosi.output/SHA256SUMS
+        run: mv mkosi.output/system_${{ github.ref_name }}.SHA256SUMS mkosi.output/SHA256SUMS
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -39,7 +39,7 @@ jobs:
           fail_on_unmatched_files: true
           generate_release_notes: true
           files: |
-            mkosi.output/system_*.raw.xz
-            mkosi.output/system_*.usr-*.raw.xz
-            mkosi.output/system_*.efi.xz
+            mkosi.output/system_${{ github.ref_name }}.raw.xz
+            mkosi.output/system_${{ github.ref_name }}.usr-*.raw.xz
+            mkosi.output/system_${{ github.ref_name }}.efi
             mkosi.output/SHA256SUMS
