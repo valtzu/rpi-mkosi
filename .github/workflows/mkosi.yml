@@ -10,30 +10,27 @@ permissions:
   contents: write
 
 jobs:
-  build-image:
+  build-and-release:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
-      - uses: systemd/mkosi@v17.1
-      - name: Add arm64 support
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
+      - run: |
+          sudo apt-get install -y --no-install-recommends \
+            python3 python3-pip python-is-python3 python3-pyelftools python3-pefile pipx \
+            qemu-user-static binfmt-support bubblewrap dosfstools mtools uidmap debian-archive-keyring
+      - run: |
+          pipx ensurepath
+          pipx install git+https://github.com/systemd/mkosi.git@v18
 #      - name: Generate secure boot key
 #        run: mkosi --debug genkey
+      - name: Build (cached) tools
+        run: mkosi --preset=tools
       - name: Show image summary
         run: mkosi summary
-      - name: Build
-        run: mkosi --debug --image-version=${{ github.ref_name }}
-      - name: Compress Unified Kernel Image
-        run: xz -k mkosi.output/system_*.efi
-      - name: Calculate checksums
-        run: >
-          sha256sum
-            mkosi.output/system_*.raw.xz
-            mkosi.output/system_*.usr-*.raw.xz
-            mkosi.output/system_*.efi.xz
-          > SHA256SUMS
+      - name: Build images
+        run: mkosi --image-version=${{ github.ref_name }}
+      - name: Rename SHA256SUMS
+        run: mv mkosi.output/system_*.SHA256SUMS mkosi.output/SHA256SUMS
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -45,4 +42,4 @@ jobs:
             mkosi.output/system_*.raw.xz
             mkosi.output/system_*.usr-*.raw.xz
             mkosi.output/system_*.efi.xz
-            SHA256SUMS
+            mkosi.output/SHA256SUMS
