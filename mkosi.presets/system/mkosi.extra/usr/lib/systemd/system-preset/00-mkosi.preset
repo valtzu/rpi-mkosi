@@ -15,3 +15,6 @@ disable auditd.service
 
 # systemd-timesyncd is not enabled by default in the default systemd preset so enable it here instead.
 enable systemd-timesyncd.service
+
+# Import root user's ssh public key from eeprom
+enable import-ssh-public-key.service

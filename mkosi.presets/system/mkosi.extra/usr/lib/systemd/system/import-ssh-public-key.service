@@ -1,0 +1,16 @@
+[Unit]
+Description=Populate root ssh key from eeprom
+ConditionCredential=!ssh.authorized_keys.root
+ConditionPathExists=!/root/.ssh/authorized_keys
+ConditionPathExists=/sys/bus/nvmem/devices/rmem1/nvmem
+After=systemd-tmpfiles-setup.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/import-ssh-public-key-from-eeprom
+ExecStartPost=/usr/bin/systemd-tmpfiles --prefix=/root/.ssh --create
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target
