@@ -3,7 +3,12 @@
 
 file sign_key_private.pem
 
-
+rectangle usr {
+}
+rectangle usr_verity {
+}
+rectangle usr_verity_sig {
+}
 
 rectangle esp {
     artifact boot.img {
@@ -26,10 +31,6 @@ rectangle esp {
         artifact initrd
         artifact cmdline
         artifact vmlinux
-        artifact dtb
-        note bottom
-        Not here yet
-        end note
     }
 }
 
@@ -43,5 +44,9 @@ sign_key_private.pem -.-> boot_conf.sig
 sign_key_private.pem -.-> pieeprom.sig
 sign_key_private.pem .-> uki
 sign_key_public.pem -> RPI_EFI.fd
+cmdline .. usr
+usr .up.> usr_verity
+usr_verity .up.> usr_verity_sig
+sign_key_private.pem .> usr_verity_sig
 
 ```
