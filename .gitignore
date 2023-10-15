@@ -2,3 +2,5 @@
 /.idea/
 /*.raw
 /*.raw.xz
+/mkosi.crt
+/mkosi.key

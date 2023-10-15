@@ -1,0 +1,35 @@
+#!/bin/bash -e
+
+mkdir -p $BUILDDIR/firmware/overlays
+cd $BUILDDIR/firmware
+
+if ! sha256sum --check --quiet SHA256SUMS ; then
+  curl -sfLo fixup4.dat https://github.com/raspberrypi/firmware/raw/master/boot/fixup4.dat
+  curl -sfLo start4.elf https://github.com/raspberrypi/firmware/raw/master/boot/start4.elf
+  curl -sfLo bcm2711-rpi-4-b.dtb https://github.com/raspberrypi/firmware/raw/master/boot/bcm2711-rpi-4-b.dtb
+  curl -sfLo overlays/overlay_map.dtb https://github.com/raspberrypi/firmware/raw/master/boot/overlays/overlay_map.dtb
+  curl -sfLo overlays/upstream-pi4.dtbo https://github.com/raspberrypi/firmware/raw/master/boot/overlays/upstream-pi4.dtbo
+  curl -sfLo overlays/disable-wifi.dtbo https://github.com/raspberrypi/firmware/raw/master/boot/overlays/disable-wifi.dtbo
+  curl -sfLo overlays/disable-bt.dtbo https://github.com/raspberrypi/firmware/raw/master/boot/overlays/disable-bt.dtbo
+  curl -sfLo RPI_EFI.orig.fd https://github.com/valtzu/rpi-efi-firmware/releases/download/0.2.2/RPI_EFI.fd
+  sha256sum fixup4.dat start4.elf bcm2711-rpi-4-b.dtb overlays/* RPI_EFI.orig.fd > SHA256SUMS
+fi
+
+venv=$BUILDDIR/python
+if ! [ -x $venv/bin/virt-fw-vars ] ; then
+  python -m venv $venv
+  $venv/bin/pip install virt-firmware
+fi
+$venv/bin/virt-fw-vars \
+  -i ./RPI_EFI.orig.fd \
+  -o ./RPI_EFI.fd \
+  --no-microsoft \
+  --secure-boot \
+  --enroll-cert $SRCDIR/mkosi.crt \
+  --add-db a0baa8a3-041d-48a8-bc87-c36d121b5e3d $SRCDIR/mkosi.crt
+
+truncate -s 8M $TMPDIR/boot.img
+mformat -i $TMPDIR/boot.img -L 16 ::
+mcopy -i $TMPDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/mkosi.presets/firmware/config.txt ::
+mv $TMPDIR/boot.img $SRCDIR/mkosi.output/boot.img
+# todo: sign
