@@ -32,4 +32,5 @@ truncate -s 8M $TMPDIR/boot.img
 mformat -i $TMPDIR/boot.img -L 16 ::
 mcopy -i $TMPDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/mkosi.presets/firmware/config.txt ::
 mv $TMPDIR/boot.img $SRCDIR/mkosi.output/boot.img
-# todo: sign
+curl -sL https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/e120a595d49707640c48d5351985315f704dd3f8/rpi-eeprom-digest \
+  | sh -s - -k $SRCDIR/mkosi.key -i $SRCDIR/mkosi.output/boot.img -o $SRCDIR/mkosi.output/boot.sig
