@@ -1,5 +1,4 @@
-```plantuml
-
+@startuml
 
 file sign_key_private.pem
 
@@ -26,7 +25,7 @@ rectangle esp {
         }
     }
     artifact boot.sig
-    
+
     artifact "EFI/Linux/system_0.2.0.efi" as uki {
         artifact initrd
         artifact cmdline
@@ -49,4 +48,4 @@ usr .up.> usr_verity
 usr_verity .up.> usr_verity_sig
 sign_key_private.pem .> usr_verity_sig
 
-```
+@enduml
