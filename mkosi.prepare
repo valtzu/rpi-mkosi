@@ -1,0 +1,28 @@
+#!/bin/bash -ex
+
+[[ "$1" == "final" ]] || exit 0
+
+TMPDIR=$(mktemp -d)
+EFIDIR=$BUILDROOT/efi
+mkdir -p $TMPDIR/firmware/overlays $EFIDIR
+cd $TMPDIR/firmware
+
+curl --create-dirs -fLZ --variable fw_dir=$(pwd) --variable dl_dir=$TMPDIR --config $SRCDIR/curl.txt
+
+unzip -o $TMPDIR/rpi_uefi.zip RPI_EFI.fd
+
+virt-fw-vars \
+  -i ./RPI_EFI.fd \
+  -o ./RPI_EFI.fd \
+  --set-json $SRCDIR/efivars.json \
+  --no-microsoft \
+  --secure-boot \
+  --enroll-cert $SRCDIR/mkosi.crt \
+  --add-db a0baa8a3-041d-48a8-bc87-c36d121b5e3d $SRCDIR/mkosi.crt
+
+truncate -s 8M $TMPDIR/boot.img
+mformat -i $TMPDIR/boot.img -L 16 ::
+mcopy -i $TMPDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/config.txt ::
+mv $TMPDIR/boot.img $EFIDIR/boot.img
+cat $TMPDIR/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $EFIDIR/boot.img -o $EFIDIR/boot.sig
+cp $EFIDIR/boot.{img,sig} $OUTPUTDIR/
