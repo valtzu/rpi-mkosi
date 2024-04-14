@@ -1,0 +1,24 @@
+#!/bin/bash -ex
+
+#cp $OUTPUTDIR/fw_$IMAGE_VERSION-boot.img $BUILDROOT/efi/boot.img
+#cp $OUTPUTDIR/fw_$IMAGE_VERSION-boot.sig $BUILDROOT/efi/boot.sig
+
+mkdir -p $BUILDROOT/usr/share/factory $BUILDROOT/usr/lib/modules
+cp --archive --recursive --no-target-directory --reflink=auto $BUILDROOT/etc $BUILDROOT/usr/share/factory/mkosi
+
+#kver=$(basename $dir/modules/*-v8+)
+#cp --archive --recursive --no-target-directory --reflink=auto $dir/modules/$kver $BUILDROOT/usr/lib/modules/$kver
+#zcat $dir/boot/kernel8.img > $BUILDROOT/usr/lib/modules/$kver/vmlinuz
+
+
+kver=$(basename $BUILDROOT/usr/lib/modules/*)
+if zcat -t $BUILDROOT/usr/lib/modules/$kver/vmlinuz ; then
+  mv $BUILDROOT/usr/lib/modules/$kver/{vmlinuz,vmlinuz.gz}
+  gzip -d $BUILDROOT/usr/lib/modules/$kver/vmlinuz.gz
+fi
+
+# usrhash=f115dbdd0bb39db9f0b637fa5e4ce5b9902f5e3203891c5b122af4d747dd594d rootwait fixrtc console=ttyAMA0 systemd.show_status=1 ip=dhcp ipv6.disable=1 cgroup_enable=memory fstab=no init=/usr/lib/systemd/systemd rw
+# usrhash=d99c4bcdf4a1e33ec1a4a52af406fa4d53d7a73a00c317abfd176c903e3f2ca6 rootwait fixrtc console=ttyAMA0 systemd.show_status=1 ip=dhcp ipv6.disable=1 cgroup_enable=memory fstab=no init=/usr/lib/systemd/systemd rw
+# systemd.wants=network.target module_blacklist=vmw_vmci systemd.tty.term.ttyS0=xterm-256color systemd.tty.columns.ttyS0=171 systemd.tty.rows.ttyS0=24 ip=enp0s1:any ip=enp0s2:any ip=host0:any ip=none loglevel=4 SYSTEMD_SULOGIN_FORCE=1 systemd.tty.term.console=xterm-256color systemd.tty.columns.console=171 systemd.tty.rows.console=24 console=ttyS0
+
+# /home/vagrant/.cache/mkosi/mkosi-workspacewe0gh8cn/root/usr/lib/modules/6.8.0-1002-raspi/vmlinuz.gz

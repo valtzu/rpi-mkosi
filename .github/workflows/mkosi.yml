@@ -20,7 +20,7 @@ jobs:
             qemu-user-static binfmt-support bubblewrap dosfstools mtools uidmap debian-archive-keyring
       - run: |
           pipx ensurepath
-          pipx install git+https://github.com/systemd/mkosi.git@v18
+          pipx install git+https://github.com/systemd/mkosi.git@v22
 #      - name: Generate secure boot key
 #        run: mkosi --debug genkey
       - name: Build (cached) tools

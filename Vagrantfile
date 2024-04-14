@@ -8,8 +8,9 @@ Vagrant.configure("2") do |config|
   config.vm.box = "ubuntu/jammy64"
   config.vm.provision:shell, privileged: false, reboot: true, inline: <<-SETUP
     sudo apt-get update
-    sudo apt-get install -y --no-install-recommends linux-image-6.2.0-26-generic python3 python3-pip python-is-python3 python3-pyelftools python3-pefile pipx \
-      qemu-user-static binfmt-support bubblewrap dosfstools mtools uidmap libfdisk-dev libtss2-dev libssl-dev debian-archive-keyring
+    sudo apt-get install -y --no-install-recommends python3 python3-pip python-is-python3 python3-pyelftools python3-pefile pipx \
+      qemu-user-static binfmt-support bubblewrap dosfstools mtools uidmap libfdisk-dev libtss2-dev libssl-dev debian-archive-keyring \
+      binutils-aarch64-linux-gnu
     sudo apt-get upgrade -y
 
     mkdir -p ~/build ~/.local/bin
@@ -19,6 +20,6 @@ Vagrant.configure("2") do |config|
     echo "cd ~/build" >> ~/.bashrc
 
     pipx ensurepath
-    pipx install git+https://github.com/systemd/mkosi.git@v18
+    pipx install git+https://github.com/systemd/mkosi.git@v22
     SETUP
 end

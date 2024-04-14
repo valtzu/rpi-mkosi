@@ -1,3 +1,0 @@
-#!/bin/bash -e
-
-cp $SRCDIR/mkosi.output/boot.img $BUILDROOT/efi/boot.img
