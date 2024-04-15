@@ -21,5 +21,5 @@ mkosi --preset=system
 
 ### Run on host
 ```
-mkosi --architecture=x86-64 --compress-output=no --preset=system --force qemu
+mkosi --architecture=x86-64 --compress-output=no --force qemu
 ```

@@ -7,7 +7,6 @@ disable_overscan=1
 device_tree_address=0x1f0000
 device_tree_end=0x200000
 dtparam=sd_poll_once
-#dtoverlay=miniuart-bt
 dtoverlay=disable-bt
 dtoverlay=disable-wifi
 dtoverlay=upstream-pi4

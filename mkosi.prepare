@@ -25,4 +25,3 @@ mformat -i $TMPDIR/boot.img -L 16 ::
 mcopy -i $TMPDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/config.txt ::
 mv $TMPDIR/boot.img $EFIDIR/boot.img
 cat $TMPDIR/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $EFIDIR/boot.img -o $EFIDIR/boot.sig
-cp $EFIDIR/boot.{img,sig} $OUTPUTDIR/
