@@ -1,5 +1,2 @@
-- `systemd-tmpfiles-setup.service` in initramfs should populate `/etc` on `/sysroot`, and thus,
-  must be run with `--root=/sysroot` and `After=systemd-repart`. To do this, extra initramfs is
-  needed.
-- Add empty B partition + verity on first boot
 - Include pieeprom.upd to add public key to eeprom?
+- Delete 00-esp.conf, 10-usr-a.conf & 11-usr-a-verity.conf from the image – sysupdate relies on GPT?

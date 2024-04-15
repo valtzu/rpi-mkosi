@@ -6,8 +6,6 @@ rectangle usr {
 }
 rectangle usr_verity {
 }
-rectangle usr_verity_sig {
-}
 
 rectangle esp {
     artifact boot.img {
@@ -43,9 +41,7 @@ sign_key_private.pem -.-> boot_conf.sig
 sign_key_private.pem -.-> pieeprom.sig
 sign_key_private.pem .-> uki
 sign_key_public.pem -> RPI_EFI.fd
-cmdline .. usr
 usr .up.> usr_verity
-usr_verity .up.> usr_verity_sig
-sign_key_private.pem .> usr_verity_sig
+usr_verity .> "usrhash=..." cmdline
 
 @enduml
