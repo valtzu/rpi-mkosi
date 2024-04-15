@@ -14,9 +14,7 @@ cp mkosi.key mkosi.crt /vagrant/
 
 ### Build image for Raspberry Pi
 ```
-mkosi --preset=tools
-mkosi --preset=firmware
-mkosi --preset=system
+mkosi
 ```
 
 ### Run on host
