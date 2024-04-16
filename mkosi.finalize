@@ -1,7 +1,5 @@
 #!/bin/bash -ex
 
-mkdir -p $BUILDROOT/usr/lib/modules
-
 kver=$(basename $BUILDROOT/usr/lib/modules/*)
 if zcat -t $BUILDROOT/usr/lib/modules/$kver/vmlinuz ; then
   mv $BUILDROOT/usr/lib/modules/$kver/{vmlinuz,vmlinuz.gz}
