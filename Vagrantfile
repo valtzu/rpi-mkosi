@@ -10,7 +10,7 @@ Vagrant.configure("2") do |config|
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends python3 python3-pip python-is-python3 python3-pyelftools python3-pefile pipx \
       qemu-user-static binfmt-support bubblewrap dosfstools mtools uidmap libfdisk-dev libtss2-dev libssl-dev debian-archive-keyring \
-      binutils-aarch64-linux-gnu
+      binutils-aarch64-linux-gnu jq
     sudo apt-get upgrade -y
 
     mkdir -p ~/build ~/.local/bin

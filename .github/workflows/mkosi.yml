@@ -21,25 +21,36 @@ jobs:
       - run: |
           pipx ensurepath
           pipx install git+https://github.com/systemd/mkosi.git@v22
-#      - name: Generate secure boot key
-#        run: mkosi --debug genkey
-      - name: Build (cached) tools
-        run: mkosi --preset=tools
-      - name: Show image summary
-        run: mkosi summary
+      - name: Setup mkosi
+        run: |
+          touch mkosi.key mkosi.crt
+          chmod 0600 mkosi.key mkosi.crt
+          cat << EOF > mkosi.key
+          ${{ secrets.MKOSI_KEY }}
+          EOF
+          cat << EOF > mkosi.crt
+          ${{ secrets.MKOSI_CRT }}
+          EOF
+          echo -n ${{ github.ref_name }} > mkosi.version
+          echo "OUTPUT_DIR=$(mkosi --json summary|jq -r '.Images[0]|.OutputDirectory')" >> $GITHUB_ENV
+          echo "OUTPUT=$(mkosi --json summary|jq -r '.Images[0]|.Output')" >> $GITHUB_ENV
       - name: Build images
-        run: mkosi --image-version=${{ github.ref_name }}
-      - name: Rename SHA256SUMS
-        run: mv mkosi.output/system_${{ github.ref_name }}.SHA256SUMS mkosi.output/SHA256SUMS
+        run: mkosi build
+      - name: Patch UKI name
+        run: ./patch-uki-name.sh ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.raw
+      - name: Compress outputs
+        run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.*
+      - name: Generate SHA256SUMS
+        working-directory: ${{ env.OUTPUT_DIR }}
+        run: sha256sum ${{ env.OUTPUT }}*.xz > SHA256SUMS
       - name: Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           draft: true
           fail_on_unmatched_files: true
           generate_release_notes: true
           files: |
-            mkosi.output/system_${{ github.ref_name }}.raw.xz
-            mkosi.output/system_${{ github.ref_name }}.usr-*.raw.xz
-            mkosi.output/system_${{ github.ref_name }}.efi
-            mkosi.output/SHA256SUMS
+            ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw.xz
+            ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi.xz
+            ${{ env.OUTPUT_DIR }}/SHA256SUMS
