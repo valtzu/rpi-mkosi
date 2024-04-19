@@ -40,10 +40,10 @@ jobs:
       - name: Patch UKI name
         run: ./patch-uki-name.sh ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.raw
       - name: Compress outputs
-        run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.*
+        run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
       - name: Generate SHA256SUMS
         working-directory: ${{ env.OUTPUT_DIR }}
-        run: sha256sum ${{ env.OUTPUT }}*.xz > SHA256SUMS
+        run: sha256sum ${{ env.OUTPUT }}*.raw.xz ${{ env.OUTPUT }}*.efi.xz > SHA256SUMS
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
