@@ -32,8 +32,9 @@ jobs:
           ${{ secrets.MKOSI_CRT }}
           EOF
           echo -n ${{ github.ref_name }} > mkosi.version
-          echo "OUTPUT_DIR=$(mkosi --json summary|jq -r '.Images[0]|.OutputDirectory')" >> $GITHUB_ENV
-          echo "OUTPUT=$(mkosi --json summary|jq -r '.Images[0]|.Output')" >> $GITHUB_ENV
+          echo "OUTPUT_DIR=$(mkosi --json summary|jq -r '.Images[0].OutputDirectory')" >> $GITHUB_ENV
+          echo "OUTPUT=$(mkosi --json summary|jq -r '.Images[0].Output')" >> $GITHUB_ENV
+          echo "IMAGE_ID=$(mkosi --json summary|jq -r '.Images[0].ImageId')" >> $GITHUB_ENV
       - name: Build images
         run: mkosi build
       - name: Patch UKI name
