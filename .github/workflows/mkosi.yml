@@ -3,8 +3,8 @@ name: 'Build mkosi image'
 on:
   workflow_dispatch:
   push:
-    tags:
-      - '*'
+    branches: ['main']
+    tags: ['*']
 
 permissions:
   contents: write
@@ -49,13 +49,17 @@ jobs:
       - name: Build images
         run: mkosi build
       - name: Patch UKI name
+        if: startsWith(github.ref, 'refs/tags/')
         run: ./patch-uki-name.sh ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.raw
       - name: Compress outputs
+        if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
       - name: Get previous release tag
+        if: startsWith(github.ref, 'refs/tags/')
         id: previous-release
         uses: sammcoe/get-previous-release-action@v1
       - name: Generate SHA256SUMS
+        if: startsWith(github.ref, 'refs/tags/')
         working-directory: ${{ env.OUTPUT_DIR }}
         run: |
           curl -L ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.PREVIOUS_RELEASE }}/SHA256SUMS \
