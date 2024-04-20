@@ -52,9 +52,17 @@ jobs:
         run: ./patch-uki-name.sh ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.raw
       - name: Compress outputs
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
+      - name: Get previous release tag
+        id: previous-release
+        uses: sammcoe/get-previous-release-action@v1
       - name: Generate SHA256SUMS
         working-directory: ${{ env.OUTPUT_DIR }}
-        run: sha256sum ${{ env.OUTPUT }}*.raw.xz ${{ env.OUTPUT }}*.efi.xz > SHA256SUMS
+        run: |
+          curl -L ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.PREVIOUS_RELEASE }}/SHA256SUMS \
+            | sed -E 's@(\s+)([^\.])@\1../../download/${{ env.PREVIOUS_RELEASE }}/\2@' > SHA256SUMS
+          sha256sum ${{ env.OUTPUT }}*.raw.xz ${{ env.OUTPUT }}*.efi.xz >> SHA256SUMS
+        env:
+          PREVIOUS_RELEASE: ${{ steps.previous-release.output.release }}
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
