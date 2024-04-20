@@ -24,10 +24,14 @@ jobs:
           pipx ensurepath
           pipx install git+https://github.com/systemd/mkosi.git@v22
       - name: Setup mkosi cache
+        id: mkosi-cache
         uses: actions/cache@v4
         with:
-          path: mkosi.cache
+          path: mkosi.cache.tar.zst
           key: ${{ runner.os }}
+      - name: Extract cache
+        if: steps.mkosi-cache.outputs.cache-hit == 'true'
+        run: sudo tar -xf mkosi.cache.tar.zst --use-compress-program zstdmt
       - name: Setup mkosi
         run: |
           touch mkosi.key mkosi.crt
@@ -62,3 +66,5 @@ jobs:
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw.xz
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi.xz
             ${{ env.OUTPUT_DIR }}/SHA256SUMS
+      - name: Save cache
+        run: sudo tar -cf mkosi.cache.tar.zst mkosi.cache --use-compress-program zstdmt
