@@ -28,7 +28,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: mkosi.cache.tar.zst
-          key: ${{ runner.os }}
+          key: mkosi-${{ hashFiles('mkosi.conf') }}
       - name: Extract cache
         if: steps.mkosi-cache.outputs.cache-hit == 'true'
         run: sudo tar -xf mkosi.cache.tar.zst --use-compress-program zstdmt
@@ -81,4 +81,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: mkosi.cache.tar.zst
-          key: ${{ runner.os }}
+          key: mkosi-${{ hashFiles('mkosi.conf') }}
