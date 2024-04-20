@@ -6,7 +6,7 @@ if zcat -t $BUILDROOT/usr/lib/modules/$kver/vmlinuz ; then
   gzip -d $BUILDROOT/usr/lib/modules/$kver/vmlinuz.gz
 fi
 
-mkdir -pm 0700 /root/.ssh
+mkdir -pm 0700 $BUILDROOT/root/.ssh
 # todo: use $(jq -r '.SshKey' $MKOSI_CONFIG) instead of hardcoded mkosi.key once the fix is released https://github.com/systemd/mkosi/pull/2574
-ssh-keygen -f $SRCDIR/mkosi.key -y > /root/.ssh/authorized_keys
-chmod 0700 /root/.ssh/authorized_keys
+ssh-keygen -f $SRCDIR/mkosi.key -y > $BUILDROOT/root/.ssh/authorized_keys
+chmod 0700 $BUILDROOT/root/.ssh/authorized_keys
