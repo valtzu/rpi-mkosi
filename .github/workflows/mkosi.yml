@@ -50,7 +50,7 @@ jobs:
         run: mkosi build
       - name: Patch UKI name
         if: startsWith(github.ref, 'refs/tags/')
-        run: ./patch-uki-name.sh ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.raw
+        run: ./patch-esp.sh ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.raw
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
@@ -60,9 +60,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          prev=$(gh release view --json tagName -q .tagName)
-          curl -L ${{ github.server_url }}/${{ github.repository }}/releases/download/$prev/SHA256SUMS \
-            | sed -E 's@(\s+)([^\.])@\1../../download/'$prev'/\2@' > SHA256SUMS
           sha256sum ${{ env.OUTPUT }}*.raw.xz ${{ env.OUTPUT }}*.efi.xz >> SHA256SUMS
       - name: Release
         uses: softprops/action-gh-release@v2

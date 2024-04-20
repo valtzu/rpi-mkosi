@@ -15,8 +15,9 @@ fi
 
 esp=$(mktemp)
 dd status=none of=$esp if=$img $(sfdisk -J $img|jq -r '.partitiontable|("bs="+(.sectorsize|tostring)+" skip=")+(.partitions[0]|((.start|tostring)+" count="+(.size|tostring)))')
-if mdir -i $esp "EFI/Linux/$IMAGE_ID-*.efi" 2>/dev/null ; then
+if mdir -i $esp "EFI/Linux/$IMAGE_ID-*.efi" >/dev/null 2>/dev/null ; then
   mren -i $esp "EFI/Linux/$IMAGE_ID-*.efi" "EFI/Linux/${OUTPUT}.efi"
+  mdel -i $esp "vmlinuz*" >/dev/null 2>/dev/null || true
   dd conv=notrunc status=none if=$esp of=$img $(sfdisk -J $img|jq -r '.partitiontable|("bs="+(.sectorsize|tostring)+" seek=")+(.partitions[0]|((.start|tostring)+" count="+(.size|tostring)))')
   echo "done"
 else
