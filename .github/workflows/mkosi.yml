@@ -54,19 +54,14 @@ jobs:
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
-      - name: Get previous release tag
-        if: startsWith(github.ref, 'refs/tags/')
-        id: previous-release
-        uses: sammcoe/get-previous-release-action@v1
       - name: Generate SHA256SUMS
         if: startsWith(github.ref, 'refs/tags/')
         working-directory: ${{ env.OUTPUT_DIR }}
         run: |
-          curl -L ${{ github.server_url }}/${{ github.repository }}/releases/download/${{ env.PREVIOUS_RELEASE }}/SHA256SUMS \
-            | sed -E 's@(\s+)([^\.])@\1../../download/${{ env.PREVIOUS_RELEASE }}/\2@' > SHA256SUMS
+          prev=$(gh release view -q .tagName)
+          curl -L ${{ github.server_url }}/${{ github.repository }}/releases/download/$prev/SHA256SUMS \
+            | sed -E 's@(\s+)([^\.])@\1../../download/'$prev'/\2@' > SHA256SUMS
           sha256sum ${{ env.OUTPUT }}*.raw.xz ${{ env.OUTPUT }}*.efi.xz >> SHA256SUMS
-        env:
-          PREVIOUS_RELEASE: ${{ steps.previous-release.output.release }}
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
@@ -79,10 +74,10 @@ jobs:
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi.xz
             ${{ env.OUTPUT_DIR }}/SHA256SUMS
       - name: Build cache
-        if: !startsWith(github.ref, 'refs/tags/')
+        if: "!startsWith(github.ref, 'refs/tags/')"
         run: sudo tar -cf mkosi.cache.tar.zst mkosi.cache --use-compress-program zstdmt
       - name: Save cache
-        if: !startsWith(github.ref, 'refs/tags/')
+        if: "steps.mkosi-cache.outputs.cache-hit != 'true' && !startsWith(github.ref, 'refs/tags/')"
         uses: actions/cache/save@v4
         with:
           path: mkosi.cache.tar.zst
