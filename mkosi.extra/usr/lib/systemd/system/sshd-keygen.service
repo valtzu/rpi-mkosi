@@ -1,0 +1,13 @@
+[Unit]
+Description=SSH host key generation
+ConditionPathExists=|!/etc/ssh/ssh_host_ed25519_key
+ConditionPathExists=|!/etc/ssh/ssh_host_ed25519_key.pub
+Before=sshd.service sshd.socket
+
+[Service]
+ExecStart=/usr/bin/ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -q -N ""
+Type=oneshot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
