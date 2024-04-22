@@ -1,0 +1,8 @@
+[Match]
+Name=static
+Type=vlan
+MACAddress=e4:5f:01:27:9c:3b
+
+[Network]
+LinkLocalAddressing=no
+Address=10.3.0.1/24

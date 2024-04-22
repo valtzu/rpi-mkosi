@@ -1,0 +1,7 @@
+[Match]
+Type=ether
+
+[Network]
+DHCP=ipv4
+LinkLocalAddressing=no
+VLAN=static
