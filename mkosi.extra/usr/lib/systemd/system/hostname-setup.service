@@ -1,0 +1,15 @@
+[Unit]
+Description=Set hostname
+DefaultDependencies=no
+Before=first-boot-complete.target
+ConditionCredential=instances.json
+ConditionFirstBoot=yes
+
+[Service]
+Type=oneshot
+LoadCredential=instances.json
+ExecStart=/usr/bin/jq -jrs '.[0][.[1]|tostring]' %d/instances.json /proc/device-tree/serial-number
+StandardOutput=file:/etc/hostname
+
+[Install]
+WantedBy=first-boot-complete.target

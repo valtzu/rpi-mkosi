@@ -1,1 +1,2 @@
+enable hostname-setup.service
 enable sshd-keygen.service

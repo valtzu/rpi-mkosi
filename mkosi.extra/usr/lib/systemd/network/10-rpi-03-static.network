@@ -1,7 +1,7 @@
 [Match]
 Name=static
 Type=vlan
-MACAddress=e4:5f:01:83:fb:73
+Host=rpi-03
 
 [Network]
 LinkLocalAddressing=no
