@@ -1,2 +1,0 @@
-- Include pieeprom.upd to add public key to eeprom?
-- Delete 00-esp.conf, 10-usr-a.conf & 11-usr-a-verity.conf from the image – sysupdate relies on GPT?

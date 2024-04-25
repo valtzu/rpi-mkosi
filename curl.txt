@@ -22,5 +22,11 @@ expand-output="{{fw_dir}}/overlays/disable-bt.dtbo"
 url="https://github.com/pftf/RPi4/releases/download/v1.37/RPi4_UEFI_Firmware_v1.37.zip"
 expand-output="{{dl_dir}}/rpi_uefi.zip"
 
-url="https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/e120a595d49707640c48d5351985315f704dd3f8/rpi-eeprom-digest"
+url="https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2024.04.20-2712/rpi-eeprom-digest"
 expand-output="{{dl_dir}}/rpi-eeprom-digest"
+
+url="https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2024.04.20-2712/rpi-eeprom-config"
+expand-output="{{dl_dir}}/rpi-eeprom-config"
+
+url="https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2024.04.20-2712/firmware-2711/default/pieeprom-2024-04-15.bin"
+expand-output="{{dl_dir}}/pieeprom-2024-04-15.bin"

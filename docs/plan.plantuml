@@ -8,7 +8,11 @@ rectangle usr_verity {
 }
 
 rectangle esp {
+    file config.txt as esp/config.txt {
+    }
     artifact boot.img {
+        file "bcm2711-rpi-4-b.dtb"
+        file "overlays/"
         file fixup4.dat
         file start4.elf
         file config.txt
@@ -28,6 +32,10 @@ rectangle esp {
         artifact initrd
         artifact cmdline
         artifact vmlinux
+    }
+
+    artifact "EFI/BOOT/BOOTAA64.efi" as systemd {
+        artifact "systemd-boot"
     }
 }
 
