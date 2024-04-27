@@ -1,1 +1,4 @@
 enable sshd-keygen.service
+
+# systemd-repart already runs in initrd, no reason to re-run it after switching to rootfs
+disable systemd-repart.service
