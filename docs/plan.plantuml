@@ -6,6 +6,8 @@ rectangle usr {
 }
 rectangle usr_verity {
 }
+rectangle usr_verity_sig {
+}
 
 rectangle esp {
     file config.txt as esp/config.txt {
@@ -48,8 +50,10 @@ pieeprom.upd -up.> pieeprom.sig
 sign_key_private.pem -.-> boot_conf.sig
 sign_key_private.pem -.-> pieeprom.sig
 sign_key_private.pem .-> uki
+sign_key_private.pem -.-> usr_verity_sig
 sign_key_public.pem -> RPI_EFI.fd
 usr .up.> usr_verity
 usr_verity .> "usrhash=..." cmdline
+usr_verity .> usr_verity_sig
 
 @enduml
