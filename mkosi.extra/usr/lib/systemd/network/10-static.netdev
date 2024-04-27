@@ -1,0 +1,6 @@
+[NetDev]
+Name=static
+Kind=vlan
+
+[VLAN]
+Id=8
