@@ -5,4 +5,3 @@ Type=ether
 KeepConfiguration=dhcp-on-stop
 DHCP=ipv4
 LinkLocalAddressing=no
-VLAN=static

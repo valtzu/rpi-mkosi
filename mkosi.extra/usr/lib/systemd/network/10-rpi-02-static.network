@@ -1,8 +1,0 @@
-[Match]
-Name=static
-Type=vlan
-Host=rpi-02
-
-[Network]
-LinkLocalAddressing=no
-Address=10.3.0.2/24
