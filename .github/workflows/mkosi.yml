@@ -22,7 +22,7 @@ jobs:
             binutils-aarch64-linux-gnu jq rename
       - run: |
           pipx ensurepath
-          pipx install git+https://github.com/systemd/mkosi.git@v22
+          pipx install git+https://github.com/systemd/mkosi.git@v24.3
       - name: Setup mkosi cache
         id: mkosi-cache
         uses: actions/cache/restore@v4
@@ -48,9 +48,6 @@ jobs:
           echo "IMAGE_ID=$(mkosi --json summary|jq -r '.Images[0].ImageId')" >> $GITHUB_ENV
       - name: Build images
         run: mkosi build
-      - name: Patch UKI name
-        if: startsWith(github.ref, 'refs/tags/')
-        run: ./patch-esp.sh ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.raw
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi

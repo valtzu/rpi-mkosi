@@ -20,6 +20,6 @@ Vagrant.configure("2") do |config|
     echo "cd ~/build" >> ~/.bashrc
 
     pipx ensurepath
-    pipx install git+https://github.com/systemd/mkosi.git@v22
+    pipx install git+https://github.com/systemd/mkosi.git@v24.3
     SETUP
 end
