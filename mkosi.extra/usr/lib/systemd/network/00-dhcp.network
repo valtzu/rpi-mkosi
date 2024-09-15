@@ -3,6 +3,7 @@ Type=ether
 
 [Network]
 KeepConfiguration=dhcp-on-stop
+ClientIdentifier=mac
 DHCP=ipv4
 LinkLocalAddressing=no
 VLAN=static
