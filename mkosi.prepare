@@ -7,8 +7,8 @@ EFIDIR=$BUILDROOT/efi
 mkdir -p $TMPDIR/firmware/overlays $EFIDIR
 cd $TMPDIR/firmware
 
-curl --create-dirs -fLZ --variable fw_dir=$(pwd) --variable dl_dir=$TMPDIR --config $SRCDIR/curl.txt
-
+curl --create-dirs -fLZ --variable fw_dir=$(pwd) --variable dl_dir=$TMPDIR --variable buildroot=$BUILDROOT --config $SRCDIR/curl.txt
+chmod a+x $BUILDROOT/usr/bin/k3s
 unzip -o $TMPDIR/rpi_uefi.zip RPI_EFI.fd
 
 virt-fw-vars \

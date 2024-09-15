@@ -30,3 +30,6 @@ expand-output="{{dl_dir}}/rpi-eeprom-config"
 
 url="https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2024.04.20-2712/firmware-2711/default/pieeprom-2024-04-15.bin"
 expand-output="{{dl_dir}}/pieeprom-2024-04-15.bin"
+
+url="https://github.com/k3s-io/k3s/releases/download/v1.29.2+k3s1/k3s-arm64"
+expand-output="{{buildroot}}/usr/bin/k3s"
