@@ -1,0 +1,7 @@
+#!/bin/bash -e
+
+kver=$(basename $BUILDROOT/usr/lib/modules/*)
+if zcat -t $BUILDROOT/usr/lib/modules/$kver/vmlinuz ; then
+  mv $BUILDROOT/usr/lib/modules/$kver/{vmlinuz,vmlinuz.gz}
+  gzip -d $BUILDROOT/usr/lib/modules/$kver/vmlinuz.gz
+fi

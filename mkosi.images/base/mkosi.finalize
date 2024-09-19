@@ -1,0 +1,6 @@
+#!/bin/bash -e
+
+mkdir -pm 0700 $BUILDROOT/root/.ssh
+# todo: use $(jq -r '.SshKey' $MKOSI_CONFIG) instead of hardcoded mkosi.key once the fix is released https://github.com/systemd/mkosi/pull/2574
+ssh-keygen -f $SRCDIR/mkosi.key -y > $BUILDROOT/root/.ssh/authorized_keys
+chmod 0700 $BUILDROOT/root/.ssh/authorized_keys
