@@ -1,0 +1,5 @@
+#!/bin/bash -e
+
+# split-artifacts with usrhash are not removed automatically 😕
+
+rm -f $OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.*.usr*.raw
