@@ -1,5 +1,2 @@
 enable sshd-keygen.service
-
-# Make sure k3s is not enabled by default
-disable k3s.service
-disable k3s-agent.service
+enable k3s.service

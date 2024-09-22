@@ -1,15 +1,19 @@
 [Unit]
-Description=K3s server
+Description=K3s
 Documentation=https://k3s.io
 Wants=network-online.target
 After=network-online.target
+ConditionCredential=k3s.token
+ConditionCredential=k3s.config
 
 [Install]
 WantedBy=multi-user.target
 
 [Service]
+ImportCredential=k3s.*
 Type=notify
-EnvironmentFile=-/etc/systemd/system/%n.env
+Environment=K3S_EXEC=server
+EnvironmentFile=-%d/k3s.env
 KillMode=process
 Delegate=yes
 # Having non-zero Limit*s causes performance problems due to accounting overhead
@@ -24,4 +28,4 @@ RestartSec=5s
 ExecStartPre=/bin/sh -xc '! /usr/bin/systemctl is-enabled --quiet nm-cloud-setup.service'
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
-ExecStart=/usr/bin/k3s server
+ExecStart=/usr/bin/k3s $K3S_EXEC --token=%d/k3s.token --config %d/k3s.config
