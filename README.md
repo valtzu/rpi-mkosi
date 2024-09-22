@@ -32,3 +32,10 @@ See https://www.freedesktop.org/software/systemd/man/latest/systemd.system-crede
 ```
 systemd-creds encrypt --with-key=null --name=network.hosts <(echo 127.0.0.1 localhost) /efi/loader/credentials/network.hosts.cred
 ```
+
+### TODO
+
+```
+[   27.206483] systemd-fsck[322]: fsck failed with exit status 8.
+```
+1. disable systemd-fsck on /usr?
