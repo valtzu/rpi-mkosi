@@ -14,13 +14,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - name: Install mkosi dependencies
+        run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             python3 python3-pip python-is-python3 python3-pyelftools python3-pefile pipx \
             qemu-user-static binfmt-support bubblewrap dosfstools mtools uidmap debian-archive-keyring \
             binutils-aarch64-linux-gnu jq rename
-      - run: |
+      - name: Install mkosi
+        run: |
           pipx ensurepath
           pipx install git+https://github.com/systemd/mkosi.git@v24.3
       - name: Setup mkosi cache
@@ -46,6 +48,8 @@ jobs:
           mkosi --json summary|jq -r '.Images[-1]|{OUTPUT_DIR:.OutputDirectory,OUTPUT:.Output,IMAGE_ID:.ImageId}|to_entries|map("\(.key)=\(.value)\n")|join("")' >> $GITHUB_ENV
       - name: Build images
         run: mkosi build
+      - name: Test images
+        run: mkosi '--kernel-command-line-extra=systemd.run="echo hello"' qemu
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
