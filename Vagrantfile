@@ -5,7 +5,7 @@ Vagrant.configure("2") do |config|
     v.cpus = 2
   end
   config.vm.define "vagrant"
-  config.vm.box = "ubuntu/jammy64"
+  config.vm.box = "bento/ubuntu-24.04"
   config.vm.provision:shell, privileged: false, reboot: true, inline: <<-SETUP
     sudo apt-get update
     sudo apt-get install -y --no-install-recommends python3 python3-pip python-is-python3 python3-pyelftools python3-pefile pipx \
@@ -21,5 +21,9 @@ Vagrant.configure("2") do |config|
 
     pipx ensurepath
     pipx install git+https://github.com/systemd/mkosi.git@v24.3
+    SETUP
+  config.vm.provision:shell, privileged: true, run: 'always', inline: <<-SETUP
+    sysctl --ignore --write kernel.apparmor_restrict_unprivileged_unconfined=0
+    sysctl --ignore --write kernel.apparmor_restrict_unprivileged_userns=0
     SETUP
 end
