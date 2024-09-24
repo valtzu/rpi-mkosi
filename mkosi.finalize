@@ -7,3 +7,7 @@ if zcat -t $BUILDROOT/usr/lib/modules/$kver/vmlinuz ; then
   mv $BUILDROOT/usr/lib/modules/$kver/{vmlinuz,vmlinuz.gz}
   gzip -d $BUILDROOT/usr/lib/modules/$kver/vmlinuz.gz
 fi
+
+mkdir -p $BUILDROOT/efi/loader/credentials
+# This will make systemd populate /etc/machine-id from /sys/class/dmi/id/product_uuid
+systemd-creds encrypt --with-key=null --name=system.machine_id <(echo -n firmware) $BUILDROOT/efi/loader/credentials/system.machine_id.cred
