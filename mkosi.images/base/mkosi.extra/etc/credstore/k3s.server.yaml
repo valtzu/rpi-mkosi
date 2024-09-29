@@ -1,0 +1,10 @@
+node-taint+:
+  - CriticalAddonsOnly=true:NoExecute
+disable+:
+  - local-storage
+  - servicelb
+  - traefik
+disable-cloud-controller: true
+disable-helm-controller: true
+write-kubeconfig-mode: 644
+secrets-encryption: true

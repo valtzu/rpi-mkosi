@@ -5,8 +5,7 @@ Wants=network-online.target
 After=network-online.target
 ConditionCredential=k3s.token
 ConditionCredential=k3s.server.yaml
-ConditionHost=!cp1
-ConditionHost=cp*
+ConditionHost=cp1
 
 [Install]
 WantedBy=multi-user.target
@@ -29,4 +28,4 @@ RestartSec=5s
 ExecStartPre=/bin/sh -xc '! /usr/bin/systemctl is-enabled --quiet nm-cloud-setup.service'
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
-ExecStart=/usr/bin/k3s server --token-file=%d/k3s.token --config %d/k3s.server.yaml --tls-san=%H,%l,cp
+ExecStart=/usr/bin/k3s server --cluster-init --token-file=%d/k3s.token --config %d/k3s.server.yaml --tls-san=%H,%l,cp

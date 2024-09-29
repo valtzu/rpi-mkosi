@@ -1,18 +1,17 @@
 [Unit]
-Description=K3s server
+Description=K3s agent
 Documentation=https://k3s.io
 Wants=network-online.target
 After=network-online.target
 ConditionCredential=k3s.token
-ConditionCredential=k3s.server.yaml
-ConditionHost=!cp1
-ConditionHost=cp*
+ConditionCredential=k3s.agent.yaml
+ConditionHost=node*
 
 [Install]
 WantedBy=multi-user.target
 
 [Service]
-ImportCredential=k3s.server.yaml
+ImportCredential=k3s.agent.yaml
 ImportCredential=k3s.token
 Type=notify
 KillMode=process
@@ -29,4 +28,4 @@ RestartSec=5s
 ExecStartPre=/bin/sh -xc '! /usr/bin/systemctl is-enabled --quiet nm-cloud-setup.service'
 ExecStartPre=-/sbin/modprobe br_netfilter
 ExecStartPre=-/sbin/modprobe overlay
-ExecStart=/usr/bin/k3s server --token-file=%d/k3s.token --config %d/k3s.server.yaml --tls-san=%H,%l,cp
+ExecStart=/usr/bin/k3s agent --server=https://cp:6443 --token-file=%d/k3s.token --config %d/k3s.agent.yaml
