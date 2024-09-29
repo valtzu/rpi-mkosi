@@ -5,7 +5,7 @@ Type=ether
 KeepConfiguration=dhcp-on-stop
 DHCP=ipv4
 LinkLocalAddressing=ipv4
-MulticastDNS=yes
+MulticastDNS=no
 LLMNR=no
 
 [DHCPv4]
