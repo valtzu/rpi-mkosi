@@ -1,2 +1,6 @@
 enable sshd-keygen.service
-enable k3s.service
+disable k3s.service
+disable k3s-agent.service
+disable k3s-cluster-init.service
+enable keepalived.service
+disable ipvsadm.service
