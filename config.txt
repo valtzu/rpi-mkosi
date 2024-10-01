@@ -9,6 +9,7 @@ device_tree_end=0x200000
 dtparam=sd_poll_once
 dtparam=audio=off
 dtparam=hdmi=off
+dtparam=watchdog=on
 dtoverlay=disable-bt
 dtoverlay=disable-wifi
 dtoverlay=upstream-pi4
