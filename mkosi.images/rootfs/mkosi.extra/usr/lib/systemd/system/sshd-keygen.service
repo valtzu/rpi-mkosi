@@ -10,4 +10,4 @@ Type=oneshot
 RemainAfterExit=yes
 
 [Install]
-WantedBy=ssh-access.target
+WantedBy=multi-user.target

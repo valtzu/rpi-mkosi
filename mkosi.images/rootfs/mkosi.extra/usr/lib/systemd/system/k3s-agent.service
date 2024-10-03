@@ -4,14 +4,13 @@ Documentation=https://k3s.io
 Wants=network-online.target
 After=network-online.target
 ConditionCredential=k3s.token
-ConditionCredential=k3s.agent.yaml
 ConditionHost=node*
 
 [Install]
 WantedBy=multi-user.target
 
 [Service]
-ImportCredential=k3s.agent.yaml
+LoadCredential=k3s.agent.yaml:/etc/rancher/k3s/k3s.agent.yaml
 ImportCredential=k3s.token
 Type=notify
 KillMode=process

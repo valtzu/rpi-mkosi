@@ -4,7 +4,6 @@ Documentation=https://k3s.io
 Wants=network-online.target
 After=network-online.target
 ConditionCredential=k3s.token
-ConditionCredential=k3s.server.yaml
 ConditionHost=!cp1
 ConditionHost=cp*
 
@@ -12,7 +11,7 @@ ConditionHost=cp*
 WantedBy=multi-user.target
 
 [Service]
-ImportCredential=k3s.server.yaml
+LoadCredential=k3s.server.yaml:/etc/rancher/k3s/k3s.server.yaml
 ImportCredential=k3s.token
 Type=notify
 KillMode=process

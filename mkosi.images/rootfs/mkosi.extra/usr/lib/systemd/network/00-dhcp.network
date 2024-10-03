@@ -9,5 +9,10 @@ MulticastDNS=no
 LLMNR=no
 
 [DHCPv4]
-ClientIdentifier=mac
-UseHostname=no
+;ClientIdentifier=mac
+;UseHostname=no
+
+# VIP
+#[Route]
+#Destination=10.2.0.2
+#Type=local
