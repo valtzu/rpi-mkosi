@@ -5,4 +5,5 @@
 /mkosi.crt
 /mkosi.key
 /mkosi.version
+/mkosi.local.conf
 /*.log
