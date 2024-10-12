@@ -7,11 +7,13 @@ disable_overscan=1
 device_tree_address=0x1f0000
 device_tree_end=0x200000
 dtparam=sd_poll_once
+dtparam=spi=on
 dtparam=audio=off
 dtparam=hdmi=off
 dtparam=watchdog=on
 dtoverlay=disable-bt
 dtoverlay=disable-wifi
+dtoverlay=tpm-slb9670
 dtoverlay=upstream-pi4
 disable_splash=1
 boot_delay=0
