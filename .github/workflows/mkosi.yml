@@ -43,7 +43,7 @@ jobs:
       - name: Build images
         run: mkosi build
       - name: Test images
-        run: mkosi '--kernel-command-line-extra=systemd.run="echo hello"' qemu
+        run: mkosi '--credential=cryptsetup.passphrase=123' '--kernel-command-line-extra=systemd.run="echo hello"' qemu
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
