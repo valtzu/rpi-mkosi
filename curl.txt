@@ -21,9 +21,6 @@ expand-output="{{fw_dir}}/overlays/disable-wifi.dtbo"
 expand-url="{{fw_base_url}}/boot/overlays/disable-bt.dtbo"
 expand-output="{{fw_dir}}/overlays/disable-bt.dtbo"
 
-expand-url="{{fw_base_url}}/boot/overlays/tpm-slb9670.dtbo"
-expand-output="{{fw_dir}}/overlays/tpm-slb9670.dtbo"
-
 url="https://github.com/pftf/RPi4/releases/download/v1.37/RPi4_UEFI_Firmware_v1.37.zip"
 expand-output="{{dl_dir}}/rpi_uefi.zip"
 
