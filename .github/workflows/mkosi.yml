@@ -11,14 +11,14 @@ permissions:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - name: Install mkosi
         uses: systemd/mkosi@v24.3
-      - name: Install cross-arch tools etc
+      - name: Install tools etc
         run: |
-          sudo apt-get install -y --no-install-recommends qemu-user-static binutils-aarch64-linux-gnu jq rename
+          sudo apt-get install -y --no-install-recommends jq rename uidmap
       - name: Setup mkosi cache
         id: mkosi-cache
         uses: actions/cache/restore@v4
