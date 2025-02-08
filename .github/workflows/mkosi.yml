@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install mkosi
-        uses: systemd/mkosi@v24.3
+        uses: systemd/mkosi@v25.3
       - name: Install tools etc
         run: |
           sudo apt-get install -y --no-install-recommends jq rename uidmap
