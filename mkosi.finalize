@@ -1,9 +1,0 @@
-#!/bin/bash -e
-
-#cp $BUILDROOT/efi/EFI/Linux/*.efi $OUTPUTDIR/
-
-kver=$(basename $BUILDROOT/usr/lib/modules/*)
-if zcat -t $BUILDROOT/usr/lib/modules/$kver/vmlinuz ; then
-  mv $BUILDROOT/usr/lib/modules/$kver/{vmlinuz,vmlinuz.gz}
-  gzip -d $BUILDROOT/usr/lib/modules/$kver/vmlinuz.gz
-fi

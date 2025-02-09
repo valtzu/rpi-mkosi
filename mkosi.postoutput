@@ -1,5 +1,0 @@
-#!/bin/bash -e
-
-#ln -sf boot_${IMAGE_VERSION}.efi $OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.efi
-
-ls -la $OUTPUTDIR
