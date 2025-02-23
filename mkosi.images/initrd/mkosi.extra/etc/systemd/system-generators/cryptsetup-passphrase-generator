@@ -1,0 +1,13 @@
+#!/bin/sh -e
+modprobe nvmem_raspberrypi_otp
+[ -e /sys/bus/nvmem/devices/nvmem_priv0/nvmem ] || exit 0
+
+mkdir -p -m 0700 /run/cryptsetup-keys.d
+/usr/bin/install -m 0400 /sys/bus/nvmem/devices/nvmem_priv0/nvmem /run/cryptsetup-keys.d/root.key
+
+mkdir -p $3/systemd-repart.service.d
+
+cat > $3/systemd-repart.service.d/credential-from-key-file.conf <<CONF
+[Service]
+LoadCredential=cryptsetup.passphrase:/run/cryptsetup-keys.d/root.key
+CONF

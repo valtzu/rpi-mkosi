@@ -28,5 +28,5 @@ mkosi
 
 ### Run on host
 ```
-mkosi --credential=cryptsetup.passphrase=123 qemu
+mkosi qemu
 ```
