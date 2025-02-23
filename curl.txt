@@ -1,4 +1,4 @@
-variable="fw_base_url=https://github.com/raspberrypi/firmware/raw/8a8adaf2f1d6836facdc1c66f4e838b2025ec851"
+variable="fw_base_url=https://github.com/raspberrypi/firmware/raw/c04c3c813064ef2f145b2edf5e34d18bdfe9d03e"
 variable="eeprom_base_url=https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2025.01.22-2712"
 
 expand-url="{{fw_base_url}}/boot/fixup4.dat"
@@ -22,7 +22,7 @@ expand-output="{{fw_dir}}/overlays/disable-wifi.dtbo"
 expand-url="{{fw_base_url}}/boot/overlays/disable-bt.dtbo"
 expand-output="{{fw_dir}}/overlays/disable-bt.dtbo"
 
-url="https://github.com/pftf/RPi4/releases/download/v1.40/RPi4_UEFI_Firmware_v1.40.zip"
+url="https://github.com/pftf/RPi4/releases/download/v1.37/RPi4_UEFI_Firmware_v1.37.zip"
 expand-output="{{dl_dir}}/rpi_uefi.zip"
 
 expand-url="{{eeprom_base_url}}/rpi-eeprom-digest"
