@@ -10,6 +10,8 @@ dtparam=sd_poll_once
 dtparam=audio=off
 dtparam=hdmi=off
 dtparam=watchdog=on
+dtparam=nvmem_cust_rw
+dtparam=nvmem_priv_rw
 dtoverlay=disable-bt
 dtoverlay=disable-wifi
 dtoverlay=upstream-pi4

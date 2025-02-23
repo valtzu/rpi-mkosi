@@ -1,0 +1,27 @@
+#!/bin/bash -ex
+
+kver=$(basename /usr/lib/modules/*)
+# "6.8.0-31-generic" -> "6.8"
+kver_minor_major=$(echo $kver|grep -oE '^[0-9]+\.[0-9]+')
+
+rpi_kernel=/usr/src/linux-rpi-$kver_minor_major
+installed_kernel=/usr/lib/modules/$kver/build
+
+mkdir -p $installed_kernel/include/linux
+cp -rf $rpi_kernel/include/linux/{broadcom,platform_data} $installed_kernel/include/linux/
+
+export CONFIG_NVMEM_RASPBERRYPI_OTP=m
+export CONFIG_BCM2708_VCMEM=m
+export CONFIG_BCM_VCIO=m
+
+# Only build rpi modules
+sed -E '/RASPBERRYPI/! s/^obj-\$\(CONFIG_NVMEM_/#\0/;/raspberrypi|nvmem_core/! s/^nvmem/#\0/' -i $rpi_kernel/drivers/nvmem/Makefile
+
+mkdir -p $installed_kernel/certs
+ln -s $SRCDIR/mkosi.key $installed_kernel/certs/signing_key.pem
+ln -s $SRCDIR/mkosi.crt $installed_kernel/certs/signing_key.x509
+
+make -j$(nproc) -C $installed_kernel M=$rpi_kernel/drivers/nvmem modules
+make -j$(nproc) -C $installed_kernel M=$rpi_kernel/drivers/nvmem modules_install INSTALL_MOD_PATH=$DESTDIR INSTALL_MOD_DIR=extra/drivers/nvmem
+make -j$(nproc) -C $installed_kernel M=$rpi_kernel/drivers/char/broadcom modules
+make -j$(nproc) -C $installed_kernel M=$rpi_kernel/drivers/char/broadcom modules_install INSTALL_MOD_PATH=$DESTDIR INSTALL_MOD_DIR=extra/drivers/char/broadcom

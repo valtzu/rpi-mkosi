@@ -1,0 +1,4 @@
+#!/bin/bash -ex
+
+kver=$(basename /usr/lib/modules/*)
+depmod --all --quick $kver
