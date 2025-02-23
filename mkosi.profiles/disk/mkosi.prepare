@@ -1,0 +1,13 @@
+#!/bin/bash -ex
+
+[[ "$1" == "build" ]] || exit 0
+
+kver=$(basename $BUILDROOT/usr/lib/modules/*)
+# "6.8.0-31-generic" -> "6.8"
+kver_minor_major=$(echo $kver|grep -oE '^[0-9]+\.[0-9]+')
+
+rpi_kernel=$BUILDROOT/usr/src/linux-rpi-$kver_minor_major
+
+[[ -d $rpi_kernel ]] || mkdir -p $rpi_kernel
+
+curl -sL "https://github.com/raspberrypi/linux/archive/refs/heads/rpi-$kver_minor_major.y.tar.gz"|tar --strip-components=1 -xzC $rpi_kernel

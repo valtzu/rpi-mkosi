@@ -1,4 +1,4 @@
-variable="fw_base_url=https://github.com/raspberrypi/firmware/raw/c04c3c813064ef2f145b2edf5e34d18bdfe9d03e"
+variable="fw_base_url=https://github.com/raspberrypi/firmware/raw/fe200a5b779d6369c05a845c650b62d5139d17ac"
 variable="eeprom_base_url=https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2025.01.22-2712"
 
 expand-url="{{fw_base_url}}/boot/fixup4.dat"
