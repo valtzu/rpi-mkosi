@@ -1,5 +1,7 @@
 ## Raspberry Pi 4B + `mkosi` + `systemd`
 
+Inspired by https://0pointer.net/blog/fitting-everything-together.html 
+
 ### Included in the image
 
 1. ESP (`/efi`) partition
