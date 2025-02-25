@@ -3,14 +3,12 @@ TODO
 
 ## Configuration
 
-### Where to store root disk encryption key
-* As plaintext in eeprom config?
-  * still better than as plaintext on ESP partition
-  * could be populated on second boot (add pieeprom.upd on first boot and remove it on second boot)
-  * does not work with secure boot as the machine does not _(and should not)_ have the signing key ☹
-    * Two-step flashing process could fix this: first, flash identity/eeprom, then OS. But then we can generate the secret on the device.
-* In eeprom OTP registry? – Debian contains no `vcmailbox` tools and [no nvmem-raspberrypi-otp kernel module](https://forums.raspberrypi.com/viewtopic.php?t=380883) (so `/dev/vcio` missing)
-* Just buy more of [those TPM](https://raspberrypi.dk/en/product/letstrust-tpm-for-raspberry-pi/)s?
+### Generate root partition encryption key
+
+* Root partition encryption key is read from `/sys/bus/nvmem/devices/nvmem_priv0/nvmem`, but
+  it's all zeros by default. There should be some config switch to write a random value into 
+  it. It is worth noting that it is one-time-programmable, so once the bits go nonzero, there's
+  no going back. 
 
 ### How to populate device-specific configuration 
 
