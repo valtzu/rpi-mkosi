@@ -4,8 +4,8 @@ enable_gic=1
 armstub=RPI_EFI.fd
 disable_commandline_tags=2
 disable_overscan=1
-device_tree_address=0x1f0000
-device_tree_end=0x200000
+device_tree_address=0x3e0000
+device_tree_end=0x400000
 dtparam=sd_poll_once
 dtparam=audio=off
 dtparam=hdmi=off
