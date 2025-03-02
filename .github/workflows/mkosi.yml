@@ -18,7 +18,7 @@ jobs:
         uses: systemd/mkosi@v25.3
       - name: Install tools etc
         run: |
-          sudo apt-get install -y --no-install-recommends jq rename uidmap
+          sudo apt-get install -y --no-install-recommends jq uidmap
       - name: Setup mkosi cache
         id: mkosi-cache
         uses: actions/cache/restore@v4
@@ -53,7 +53,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          rename 's/\.([a-f0-9]{32})/_$1/' ${{ env.OUTPUT }}.*.*.raw.xz
           sha256sum ${{ env.OUTPUT }}*.{raw,efi,changelog}.xz >> SHA256SUMS
       - name: Release
         uses: softprops/action-gh-release@v2

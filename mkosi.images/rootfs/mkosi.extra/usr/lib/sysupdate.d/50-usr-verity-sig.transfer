@@ -5,7 +5,7 @@ Verify=no
 [Source]
 Type=url-file
 Path=https://github.com/valtzu/rpi-mkosi/releases/latest/download
-MatchPattern=%M_@v_@u.usr-verity-sig.raw.xz
+MatchPattern=%M_@v.usr-verity-sig.@u.raw.xz
 
 [Target]
 Type=partition
