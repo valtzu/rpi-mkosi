@@ -1,0 +1,10 @@
+#!/bin/bash -ex
+
+new_changelog=$OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog
+
+if ! [ -e $new_changelog ] ; then
+  >&2 echo "Missing new changelog, skipping diff"
+  exit 0
+fi
+
+diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog.diff || true
