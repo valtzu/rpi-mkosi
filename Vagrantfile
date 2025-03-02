@@ -16,7 +16,7 @@ Vagrant.configure("2") do |config|
     sudo apt-get upgrade -yq
 
     mkdir -p ~/build ~/.local/bin
-    echo "rsync --links -r --exclude=.git --exclude=.vagrant --exclude=mkosi.cache --exclude=mkosi.output --exclude=mkosi.builddir --exclude=mkosi.workspace --exclude='*.raw*' --delete /vagrant/ ~/build" > ~/.local/bin/vagrant-rsync
+    echo "rsync --links -r --exclude=.git --exclude=.vagrant --exclude=mkosi.cache --exclude=mkosi.output --exclude=mkosi.builddir --exclude=mkosi.workspace --exclude='*.raw*' --exclude=cache --delete /vagrant/ ~/build" > ~/.local/bin/vagrant-rsync
     chmod u+x ~/.local/bin/vagrant-rsync
     echo "~/.local/bin/vagrant-rsync" >> ~/.bashrc
     echo "cd ~/build" >> ~/.bashrc

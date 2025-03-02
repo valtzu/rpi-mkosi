@@ -1,5 +1,10 @@
-variable="fw_base_url=https://github.com/raspberrypi/firmware/raw/fe200a5b779d6369c05a845c650b62d5139d17ac"
 variable="eeprom_base_url=https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2025.01.22-2712"
+expand-variable="fw_base_url=https://github.com/raspberrypi/firmware/raw/{{firmware_ref}}"
+expand-variable="fw_dir={{dl_dir}}/firmware"
+expand-variable="eeprom_dir={{dl_dir}}/eeprom"
+expand-variable="buildroot={{dl_dir}}/buildroot"
+create-dirs
+skip-existing
 
 expand-url="{{fw_base_url}}/boot/fixup4.dat"
 expand-output="{{fw_dir}}/fixup4.dat"
@@ -22,17 +27,20 @@ expand-output="{{fw_dir}}/overlays/disable-wifi.dtbo"
 expand-url="{{fw_base_url}}/boot/overlays/disable-bt.dtbo"
 expand-output="{{fw_dir}}/overlays/disable-bt.dtbo"
 
-url="https://github.com/pftf/RPi4/releases/download/v1.41/RPi4_UEFI_Firmware_v1.41.zip"
-expand-output="{{dl_dir}}/rpi_uefi.zip"
+expand-url="https://github.com/pftf/RPi4/releases/download/{{uefi_version}}/RPi4_UEFI_Firmware_{{uefi_version}}.zip"
+expand-output="{{dl_dir}}/rpi_uefi_{{uefi_version}}.zip"
 
 expand-url="{{eeprom_base_url}}/rpi-eeprom-digest"
-expand-output="{{dl_dir}}/rpi-eeprom-digest"
+expand-output="{{eeprom_dir}}/rpi-eeprom-digest"
 
 expand-url="{{eeprom_base_url}}/rpi-eeprom-config"
-expand-output="{{dl_dir}}/rpi-eeprom-config"
+expand-output="{{eeprom_dir}}/rpi-eeprom-config"
 
 expand-url="{{eeprom_base_url}}/firmware-2711/latest/pieeprom-2024-12-07.bin"
-expand-output="{{dl_dir}}/pieeprom.bin"
+expand-output="{{eeprom_dir}}/pieeprom.bin"
 
 url="https://github.com/k3s-io/k3s/releases/download/v1.29.2+k3s1/k3s-arm64"
-expand-output="{{buildroot}}/usr/bin/k3s"
+expand-output="{{dl_dir}}/k3s"
+
+expand-url="{{dist_url}}/{{latest_changelog}}"
+expand-output="{{dl_dir}}/{{latest_changelog}}"

@@ -2,14 +2,13 @@
 
 [[ "$1" == "final" ]] || exit 0
 
+CACHEDIR=$SRCDIR/cache
 TMPDIR=$(mktemp -d)
-EFIDIR=$BUILDROOT/efi
-mkdir -p $TMPDIR/firmware/overlays $EFIDIR
+trap "rm -rf -- $TMPDIR" EXIT
+cp -af $CACHEDIR/firmware $TMPDIR/firmware
 cd $TMPDIR/firmware
 
-curl --create-dirs -fLZ --variable fw_dir=$(pwd) --variable dl_dir=$TMPDIR --variable buildroot=$BUILDROOT --config $SRCDIR/curl.txt
-chmod a+x $BUILDROOT/usr/bin/k3s
-unzip -o $TMPDIR/rpi_uefi.zip RPI_EFI.fd
+unzip -o $CACHEDIR/rpi_uefi.zip RPI_EFI.fd
 
 virt-fw-vars \
   -i ./RPI_EFI.fd \
@@ -23,5 +22,7 @@ virt-fw-vars \
 truncate -s 8M $TMPDIR/boot.img
 mformat -i $TMPDIR/boot.img -L 16 ::
 mcopy -i $TMPDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/config.txt ::
-mv $TMPDIR/boot.img $EFIDIR/boot.img
-cat $TMPDIR/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $EFIDIR/boot.img -o $EFIDIR/boot.sig
+cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $TMPDIR/boot.img -o $TMPDIR/boot.sig
+
+install -m 0755 $CACHEDIR/k3s $BUILDROOT/usr/bin/k3s
+install -m 0400 -D $TMPDIR/boot.{img,sig} $BUILDROOT/efi/

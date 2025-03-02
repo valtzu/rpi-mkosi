@@ -7,3 +7,4 @@
 /mkosi.version
 /mkosi.local.conf
 /*.log
+/cache

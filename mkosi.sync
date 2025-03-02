@@ -1,0 +1,15 @@
+#!/bin/bash -e
+
+dist_url='https://github.com/valtzu/rpi-mkosi/releases/latest/download'
+latest_changelog=$(curl -sL "$dist_url/SHA256SUMS"|grep -oE '\S+changelog\.xz$')
+
+curl -fLZ \
+  --variable "dl_dir=$SRCDIR/cache" \
+  --variable "dist_url=$dist_url" \
+  --variable "latest_changelog=$latest_changelog" \
+  --variable "uefi_version=$UEFI_VERSION" \
+  --variable "firmware_ref=$FIRMWARE_REF" \
+  --config $SRCDIR/curl.txt
+
+ln -sf $latest_changelog $SRCDIR/cache/latest.changelog.xz
+ln -sf rpi_uefi_${UEFI_VERSION}.zip $SRCDIR/cache/rpi_uefi.zip
