@@ -46,7 +46,7 @@ jobs:
         run: mkosi '--kernel-command-line-extra=systemd.run="echo hello"' qemu
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
-        run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi
+        run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.{raw,efi,changelog}
       - name: Generate SHA256SUMS
         if: startsWith(github.ref, 'refs/tags/')
         working-directory: ${{ env.OUTPUT_DIR }}
@@ -54,7 +54,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           rename 's/\.([a-f0-9]{32})/_$1/' ${{ env.OUTPUT }}.*.*.raw.xz
-          sha256sum ${{ env.OUTPUT }}*.raw.xz ${{ env.OUTPUT }}*.efi.xz >> SHA256SUMS
+          sha256sum ${{ env.OUTPUT }}*.{raw,efi,changelog}.xz >> SHA256SUMS
       - name: Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
@@ -65,6 +65,7 @@ jobs:
           files: |
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw.xz
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi.xz
+            ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.changelog.xz
             ${{ env.OUTPUT_DIR }}/SHA256SUMS
       - name: Build cache
         if: "!startsWith(github.ref, 'refs/tags/')"
