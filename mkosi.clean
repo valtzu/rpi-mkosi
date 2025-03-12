@@ -2,4 +2,4 @@
 
 # split-artifacts with usrhash are not removed automatically 😕
 
-rm -f $OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.*.usr*.raw $SRCDIR/cache
+rm -rf $OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.*.usr*.raw $SRCDIR/cache
