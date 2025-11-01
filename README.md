@@ -59,5 +59,5 @@ mkosi
 
 ### Run on host
 ```
-mkosi qemu
+mkosi vm
 ```
