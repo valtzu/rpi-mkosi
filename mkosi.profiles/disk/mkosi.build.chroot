@@ -15,9 +15,11 @@ installed_kernel=/usr/lib/modules/$kver/build
 # Only build rpi modules
 sed -E '/RASPBERRYPI/! s/^obj-\$\(CONFIG_NVMEM_/#\0/;/raspberrypi|nvmem_core/! s/^nvmem/#\0/' -i $rpi_kernel/drivers/nvmem/Makefile
 
-mkdir -p $installed_kernel/certs
+mkdir -p $installed_kernel/certs $installed_kernel/output
 ln -s $SRCDIR/mkosi.key $installed_kernel/certs/signing_key.pem
 ln -s $SRCDIR/mkosi.crt $installed_kernel/certs/signing_key.x509
+ln -s $SRCDIR/mkosi.key $installed_kernel/output/signing_key.pem
+ln -s $SRCDIR/mkosi.crt $installed_kernel/output/signing_key.x509
 
 export CONFIG_NVMEM_RASPBERRYPI_OTP=m
 make -j$(nproc) -C $installed_kernel M=$rpi_kernel/drivers/nvmem modules
