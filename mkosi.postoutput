@@ -9,7 +9,7 @@ fi
 
 diff_path=$OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog.diff
 
-if diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > diff_path && ! [ -z "$GEMINI_API_KEY" ] ; then
+if diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path && ! [ -z "$GEMINI_API_KEY" ] ; then
   echo -n Generating changelog summary with AI...
   curl -sL "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
     -H "x-goog-api-key: $GEMINI_API_KEY" \
