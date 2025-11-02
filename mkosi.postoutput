@@ -7,4 +7,15 @@ if ! [ -e $new_changelog ] ; then
   exit 0
 fi
 
-diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog.diff || true
+diff_path=$OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog.diff
+
+if diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > diff_path && ! [ -z "$GEMINI_API_KEY" ] ; then
+  echo -n Generating changelog summary with AI...
+  curl -sL "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+    -H "x-goog-api-key: $GEMINI_API_KEY" \
+    --json "$(cat $diff_path|jq -sRcn '{system_instruction:{parts:[{text:"Summarize the package diff for release notes. Do not list the same package name multiple times, instead, list changes under the same title that mentions the previous version and the new version. Exclude changes that seem internal to the package."}]},contents:{parts:[{text:input}]}}')" \
+    | jq -r '.candidates[].content.parts[].text' > $diff_path.md
+  echo " done."
+else
+  echo 'No changes in OS packages' | tee $diff_path $diff_path.md
+fi
