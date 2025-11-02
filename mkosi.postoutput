@@ -1,17 +1,22 @@
-#!/bin/bash -ex
+#!/bin/bash
+
+set -eo pipefail
 
 new_changelog=$OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog
+diff_path=${new_changelog}.diff
 
 if ! [ -e $new_changelog ] ; then
   >&2 echo "Missing new changelog, skipping diff"
   exit 0
 fi
 
-diff_path=$OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog.diff
+if ! [ -f $SRCDIR/cache/latest.changelog.xz ] || ! [ -s $SRCDIR/cache/latest.changelog.xz ] ; then
+  >&2 echo "Warning: Previous changelog not found"
+fi
 
-if diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path && ! [ -z "$GEMINI_API_KEY" ] ; then
+if diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path && [ -s $diff_path ] && ! [ -z "$GEMINI_API_KEY" ] ; then
   echo -n Generating changelog summary with AI...
-  curl -sL "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+  curl -sfL "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
     -H "x-goog-api-key: $GEMINI_API_KEY" \
     --json "$(cat $diff_path|jq -sRcn '{system_instruction:{parts:[{text:"Summarize the package diff for release notes. Do not list the same package name multiple times, instead, list changes under the same title that mentions the previous version and the new version. Exclude changes that seem internal to the package."}]},contents:{parts:[{text:input}]}}')" \
     | jq -r '.candidates[].content.parts[].text' > $diff_path.md
