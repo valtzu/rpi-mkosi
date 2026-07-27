@@ -14,6 +14,26 @@ jobs:
     runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7
+      - name: Diagnose sandbox environment
+        run: |
+          echo "== whoami/id =="
+          whoami
+          id
+          echo "== apparmor_restrict_unprivileged_userns =="
+          cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>&1 || echo "not present"
+          echo "== unprivileged_userns_clone =="
+          cat /proc/sys/kernel/unprivileged_userns_clone 2>&1 || echo "not present"
+          echo "== max_user_namespaces =="
+          cat /proc/sys/user/max_user_namespaces 2>&1 || echo "not present"
+          echo "== /etc/subuid /etc/subgid (this user) =="
+          grep "^$(whoami):" /etc/subuid /etc/subgid 2>&1 || echo "no entry"
+          echo "== /dev/kvm =="
+          ls -la /dev/kvm 2>&1 || echo "not present"
+          echo "== bwrap =="
+          which bwrap
+          bwrap --version
+          echo "== quick unprivileged userns smoke test =="
+          bwrap --unshare-user --uid 0 --gid 0 -- whoami 2>&1 || echo "bwrap unprivileged userns failed"
       - name: Install mkosi
         uses: systemd/mkosi@v26
       - name: Install tools etc
