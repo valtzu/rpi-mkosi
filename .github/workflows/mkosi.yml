@@ -18,7 +18,7 @@ jobs:
         uses: systemd/mkosi@v26
       - name: Install tools etc
         run: |
-          sudo apt-get install -y --no-install-recommends jq uidmap
+          sudo apt-get install -y --no-install-recommends jq uidmap systemd-container
       - name: Setup mkosi cache
         id: mkosi-cache
         uses: actions/cache/restore@v6
