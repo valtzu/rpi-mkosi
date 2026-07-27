@@ -6,5 +6,9 @@
 /mkosi.key
 /mkosi.version
 /mkosi.local.conf
+/mkosi.cache/
+/mkosi.output/
+/mkosi.tools.manifest
+/mkosi.tools/
 /*.log
 /cache
