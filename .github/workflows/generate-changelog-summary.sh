@@ -61,7 +61,7 @@ EOF
 
 echo -n "Generating changelog summary with AI..."
 gemini_stderr=$(mktemp)
-if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --approval-mode=default --model gemini-2.5-flash --output-format json 2>"$gemini_stderr") \
+if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-2.5-flash --output-format json 2>"$gemini_stderr") \
    && summary=$(echo "$output" | jq -re '.response') \
    && [ -n "$summary" ] ; then
   echo "$summary" > "$diff_path.md"
