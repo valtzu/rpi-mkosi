@@ -77,6 +77,7 @@ jobs:
           draft: true
           fail_on_unmatched_files: true
           generate_release_notes: true
+          body_path: ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.changelog.diff.md
           files: |
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw.xz
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.efi.xz
