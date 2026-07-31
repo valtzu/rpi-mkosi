@@ -64,7 +64,7 @@ gemini_stderr=$(mktemp)
 # The diff is piped via stdin rather than passed as part of -p: putting a
 # large diff directly on the command line risks hitting the OS argument
 # length limit (ARG_MAX), same failure mode hit earlier with curl.
-if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-2.5-flash-lite --output-format json < "$combined_path" 2>"$gemini_stderr") \
+if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-2.5-flash --output-format json < "$combined_path" 2>"$gemini_stderr") \
    && summary=$(echo "$output" | jq -re '.response') \
    && [ -n "$summary" ] ; then
   echo "$summary" > "$diff_path.md"
