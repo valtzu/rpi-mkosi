@@ -3,11 +3,12 @@
 # Gemini CLI. Runs outside mkosi's build sandbox (which has no network access
 # even with WithNetwork=yes) as a separate CI step.
 #
-# Rather than feeding Gemini the whole (potentially huge) unified diff in one
-# request, this gives it the list of packages whose changelog changed and a
-# single scoped tool (get-package-changelog-diff.sh, restricted by
-# gemini-policy.toml) to pull one package's diff at a time. That keeps each
-# request small regardless of how large the overall diff is.
+# Only the diffs for packages whose changelog actually changed are sent (see
+# changelog_pkg_diff.py) rather than the whole raw diff, and this is a single
+# one-shot call with no tool use -- an earlier per-package tool-calling
+# design made one API round trip per changed package, and since each round
+# trip resends the whole growing conversation plus Gemini CLI's own system
+# prompt, that cost far more than sending everything in one request.
 set -eo pipefail
 
 diff_path=$1
@@ -32,41 +33,38 @@ if ! [ -s "$old_changelog" ] ; then
   exit 0
 fi
 
-changed=$(python3 "$script_dir/changelog_pkg_diff.py" list "$old_changelog" "$new_changelog")
-if [ -z "$changed" ] ; then
+combined_path=$(mktemp)
+python3 "$script_dir/changelog_pkg_diff.py" diff-all "$old_changelog" "$new_changelog" > "$combined_path"
+if ! [ -s "$combined_path" ] ; then
+  rm -f "$combined_path"
   cp "$diff_path" "$diff_path.md"
   exit 0
 fi
 
-mkdir -p ~/.gemini/policies
-cp "$script_dir/gemini-policy.toml" ~/.gemini/policies/ci.toml
+# Keep the request (and therefore cost) small and bounded regardless of how
+# large a given release's changes are.
+max_chars=200000
+if [ "$(wc -c < "$combined_path")" -gt "$max_chars" ] ; then
+  head -c "$max_chars" "$combined_path" > "$combined_path.trunc"
+  echo -e "\n\n[... diff truncated, too large to summarize in full ...]" >> "$combined_path.trunc"
+  mv "$combined_path.trunc" "$combined_path"
+fi
 
-export OLD_CHANGELOG=$old_changelog
-export NEW_CHANGELOG=$new_changelog
-
-prompt=$(cat <<EOF
-The following Debian packages had their changelog change between releases:
-$changed
-
-For EACH package listed above, call this exact tool once to see what changed:
-  bash .github/workflows/get-package-changelog-diff.sh <package>
-
-After reviewing all of them, write a concise summary of the changes for release
-notes. Do not list the same package name multiple times, instead, list changes
-under the same title that mentions the previous version and the new version.
-Exclude changes that seem internal to the package (packaging-only changes,
-typo fixes, etc).
-EOF
-)
+prompt="Summarize the following per-package changelog diff for release notes. Do not
+list the same package name multiple times, instead, list changes under the
+same title that mentions the previous version and the new version. Exclude
+changes that seem internal to the package (packaging-only changes, typo
+fixes, etc)."
 
 echo -n "Generating changelog summary with AI..."
 gemini_stderr=$(mktemp)
-# --skip-trust rather than writing ~/.gemini/trustedFolders.json: actually
-# granting trust that way was observed to make the policy engine deny every
-# run_shell_command call, including the one explicitly allowed below (likely
-# an interaction with gemini-cli's currently-non-functional workspace policy
-# tier). --skip-trust is also what upstream's own CI docs recommend.
-if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-2.5-flash --output-format json 2>"$gemini_stderr") \
+# --skip-trust: headless CI, not an interactive session to persist a trust
+# decision for. No custom tools/policy are configured for this call, so
+# there's nothing folder trust would otherwise be protecting here.
+# The diff is piped via stdin rather than passed as part of -p: putting a
+# large diff directly on the command line risks hitting the OS argument
+# length limit (ARG_MAX), same failure mode hit earlier with curl.
+if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-2.5-flash-lite --output-format json < "$combined_path" 2>"$gemini_stderr") \
    && summary=$(echo "$output" | jq -re '.response') \
    && [ -n "$summary" ] ; then
   echo "$summary" > "$diff_path.md"
@@ -76,4 +74,4 @@ else
   >&2 cat "$gemini_stderr"
   cp "$diff_path" "$diff_path.md"
 fi
-rm -f "$gemini_stderr"
+rm -f "$gemini_stderr" "$combined_path"

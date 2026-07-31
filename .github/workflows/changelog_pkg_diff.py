@@ -44,35 +44,37 @@ def main() -> None:
     p_list.add_argument("old")
     p_list.add_argument("new")
 
-    p_diff = sub.add_parser("diff", help="print a unified diff for one package")
-    p_diff.add_argument("old")
-    p_diff.add_argument("new")
-    p_diff.add_argument("package")
+    p_diff_all = sub.add_parser(
+        "diff-all", help="print unified diffs for every package whose block changed"
+    )
+    p_diff_all.add_argument("old")
+    p_diff_all.add_argument("new")
 
     args = ap.parse_args()
 
     old_blocks = parse_blocks(read_maybe_xz(args.old))
     new_blocks = parse_blocks(read_maybe_xz(args.new))
+    changed = sorted(
+        name
+        for name in set(old_blocks) | set(new_blocks)
+        if old_blocks.get(name) != new_blocks.get(name)
+    )
 
     if args.cmd == "list":
-        for name in sorted(set(old_blocks) | set(new_blocks)):
-            if old_blocks.get(name) != new_blocks.get(name):
-                print(name)
-    elif args.cmd == "diff":
-        name = args.package
-        if name not in old_blocks and name not in new_blocks:
-            print(f"Unknown package: {name}", file=sys.stderr)
-            sys.exit(1)
-        old_text = old_blocks.get(name, f"SourcePackage: {name}\n(package did not exist previously)\n")
-        new_text = new_blocks.get(name, f"SourcePackage: {name}\n(package removed)\n")
-        sys.stdout.writelines(
-            difflib.unified_diff(
-                old_text.splitlines(keepends=True),
-                new_text.splitlines(keepends=True),
-                fromfile="old",
-                tofile="new",
+        for name in changed:
+            print(name)
+    elif args.cmd == "diff-all":
+        for name in changed:
+            old_text = old_blocks.get(name, f"SourcePackage: {name}\n(package did not exist previously)\n")
+            new_text = new_blocks.get(name, f"SourcePackage: {name}\n(package removed)\n")
+            sys.stdout.writelines(
+                difflib.unified_diff(
+                    old_text.splitlines(keepends=True),
+                    new_text.splitlines(keepends=True),
+                    fromfile="old",
+                    tofile="new",
+                )
             )
-        )
 
 
 if __name__ == "__main__":
