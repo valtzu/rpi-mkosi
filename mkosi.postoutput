@@ -14,7 +14,9 @@ if ! [ -f $SRCDIR/cache/latest.changelog.xz ] || ! [ -s $SRCDIR/cache/latest.cha
   >&2 echo "Warning: Previous changelog not found"
 fi
 
-if diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path && [ -s $diff_path ] && ! [ -z "$GEMINI_API_KEY" ] ; then
+diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path || true
+
+if [ -s $diff_path ] && ! [ -z "$GEMINI_API_KEY" ] ; then
   echo -n Generating changelog summary with AI...
   curl -sfL "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
     -H "x-goog-api-key: $GEMINI_API_KEY" \
