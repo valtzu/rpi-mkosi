@@ -41,6 +41,10 @@ fi
 mkdir -p ~/.gemini/policies
 cp "$script_dir/gemini-policy.toml" ~/.gemini/policies/ci.toml
 
+# Explicitly trust this checkout, same as the interactive folder-trust
+# dialog would persist, rather than bypassing the trust check entirely.
+jq -n --arg d "$(pwd)" '{($d): "TRUST_FOLDER"}' > ~/.gemini/trustedFolders.json
+
 export OLD_CHANGELOG=$old_changelog
 export NEW_CHANGELOG=$new_changelog
 
@@ -61,7 +65,7 @@ EOF
 
 echo -n "Generating changelog summary with AI..."
 gemini_stderr=$(mktemp)
-if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-2.5-flash --output-format json 2>"$gemini_stderr") \
+if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --approval-mode=default --model gemini-2.5-flash --output-format json 2>"$gemini_stderr") \
    && summary=$(echo "$output" | jq -re '.response') \
    && [ -n "$summary" ] ; then
   echo "$summary" > "$diff_path.md"
