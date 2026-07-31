@@ -19,14 +19,16 @@ fi
 
 echo -n "Generating changelog summary with AI..."
 request_path=$(mktemp)
+response_path=$(mktemp)
 jq -sRcn '{system_instruction:{parts:[{text:"Summarize the package diff for release notes. Do not list the same package name multiple times, instead, list changes under the same title that mentions the previous version and the new version. Exclude changes that seem internal to the package."}]},contents:{parts:[{text:input}]}}' "$diff_path" > "$request_path"
-if ! curl -sfL "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
+http_code=$(curl -sL -o "$response_path" -w '%{http_code}' "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
   -H "x-goog-api-key: $GEMINI_API_KEY" \
-  --json @"$request_path" \
-  | jq -re '.candidates[].content.parts[].text' > "$diff_path.md" ; then
-  >&2 echo " failed, falling back to raw diff."
-  cp "$diff_path" "$diff_path.md"
-else
+  --json @"$request_path")
+if [ "$http_code" = "200" ] && jq -re '.candidates[].content.parts[].text' "$response_path" > "$diff_path.md" ; then
   echo " done."
+else
+  >&2 echo " failed (HTTP $http_code), falling back to raw diff."
+  >&2 cat "$response_path"
+  cp "$diff_path" "$diff_path.md"
 fi
-rm -f "$request_path"
+rm -f "$request_path" "$response_path"
