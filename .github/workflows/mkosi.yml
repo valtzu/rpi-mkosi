@@ -46,8 +46,16 @@ jobs:
           mkosi --json summary|jq -r '.Images[-1]|{OUTPUT_DIR:.OutputDirectory,OUTPUT:.Output,IMAGE_ID:.ImageId}|to_entries|map("\(.key)=\(.value)\n")|join("")' >> $GITHUB_ENV
       - name: Build images
         run: mkosi build
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
       - name: Generate changelog summary
-        run: .github/workflows/generate-changelog-summary.sh ${{ env.OUTPUT_DIR }}/${{ env.IMAGE_ID }}_*.changelog.diff
+        run: |
+          .github/workflows/generate-changelog-summary.sh \
+            ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.changelog.diff \
+            cache/latest.changelog.xz \
+            ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.changelog
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: Test images
