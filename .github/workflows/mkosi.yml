@@ -16,6 +16,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install mkosi
         uses: systemd/mkosi@v26
+      - name: Tolerate missing package changelogs
+        run: |
+          f=$(python3 -c "import mkosi.manifest, pathlib; print(pathlib.Path(mkosi.manifest.__file__))")
+          python3 .github/workflows/patch-mkosi-changelog.py "$f"
       - name: Install tools etc
         run: |
           sudo apt-get install -y --no-install-recommends jq uidmap systemd-container
