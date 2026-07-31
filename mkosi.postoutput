@@ -18,10 +18,13 @@ diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path |
 
 if [ -s $diff_path ] && ! [ -z "$GEMINI_API_KEY" ] ; then
   echo -n Generating changelog summary with AI...
+  request_path=$(mktemp)
+  jq -sRcn '{system_instruction:{parts:[{text:"Summarize the package diff for release notes. Do not list the same package name multiple times, instead, list changes under the same title that mentions the previous version and the new version. Exclude changes that seem internal to the package."}]},contents:{parts:[{text:input}]}}' $diff_path > $request_path
   curl -sfL "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent" \
     -H "x-goog-api-key: $GEMINI_API_KEY" \
-    --json "$(cat $diff_path|jq -sRcn '{system_instruction:{parts:[{text:"Summarize the package diff for release notes. Do not list the same package name multiple times, instead, list changes under the same title that mentions the previous version and the new version. Exclude changes that seem internal to the package."}]},contents:{parts:[{text:input}]}}')" \
+    --json @$request_path \
     | jq -r '.candidates[].content.parts[].text' > $diff_path.md
+  rm -f $request_path
   echo " done."
 else
   echo 'No changes in OS packages' | tee $diff_path $diff_path.md
