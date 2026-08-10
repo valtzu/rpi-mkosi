@@ -16,3 +16,6 @@ curl -fLZ \
 ln -sf $latest_changelog $SRCDIR/cache/latest.changelog.xz
 ln -sf rpi_uefi_${UEFI_VERSION}.zip $SRCDIR/cache/rpi_uefi.zip
 ln -sf pieeprom-${EEPROM_VERSION}.bin $SRCDIR/cache/eeprom/pieeprom.bin
+
+# TODO: use local edk2 build (with LoaderBootSecret <-> eeprom binding) instead of pftf/RPi4 release, for now
+cp -f ~/src/Build/RPi4/RELEASE_GCC/FV/RPI_EFI.fd $SRCDIR/cache/firmware/RPI_EFI.fd

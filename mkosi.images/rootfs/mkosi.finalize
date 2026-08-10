@@ -6,8 +6,6 @@ trap "rm -rf -- $TMPDIR" EXIT
 cp -af $CACHEDIR/firmware $TMPDIR/firmware
 cd $TMPDIR/firmware
 
-unzip -o $CACHEDIR/rpi_uefi.zip RPI_EFI.fd
-
 virt-fw-vars \
   -i ./RPI_EFI.fd \
   -o ./RPI_EFI.fd \
