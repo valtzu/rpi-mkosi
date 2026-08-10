@@ -1,0 +1,29 @@
+# Full replacement (not a drop-in) for the sysefi.mount unit that
+# systemd-gpt-auto-generator writes to /run/systemd/generator.late/. A .d/
+# drop-in that resets Requires=/After= to drop the fsck dependency was
+# observed NOT to take effect at boot time despite systemd-analyze cat-config
+# showing the override correctly merged - a file directly in
+# /etc/systemd/system/ fully supersedes generator output for the same unit
+# name, which is a much more reliable override mechanism than drop-in
+# merging for a generator-authored unit.
+#
+# The upstream unit requires systemd-fsck@<esp>.service, which is ordered
+# After=systemd-fsck-root.service by the vendor systemd-fsck@.service
+# template. That's an ordering cycle here: root doesn't exist yet at this
+# point in boot - it's created by systemd-repart via Encrypt=tpm2 (see
+# mkosi.images/rootfs/mkosi.extra/usr/lib/repart.d/30-root.conf), which needs
+# the software TPM (systemd-tpm2-swtpm.service), which needs this mount (see
+# systemd-tpm2-swtpm.service.d/10-esp.conf). Skip the fsck for this early,
+# small, build-produced FAT partition rather than wait on it.
+[Unit]
+Description=EFI System Partition (Early)
+Documentation=man:systemd-gpt-auto-generator(8)
+After=blockdev@dev-disk-by\x2ddesignator-esp.target
+Conflicts=initrd-switch-root.target
+Before=initrd-switch-root.target
+
+[Mount]
+What=/dev/disk/by-designator/esp
+Where=/sysefi/
+Type=vfat
+Options=fmask=0177,dmask=0077,rw,nodev,nosuid,noexec,nosymfollow
