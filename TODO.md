@@ -3,13 +3,6 @@ TODO
 
 ## Configuration
 
-### Generate root partition encryption key
-
-* Root partition encryption key is read from `/sys/bus/nvmem/devices/nvmem_priv0/nvmem`, but
-  it's all zeros by default. There should be some config switch to write a random value into 
-  it. It is worth noting that it is one-time-programmable, so once the bits go nonzero, there's
-  no going back. 
-
 ### How to populate device-specific configuration 
 
 * Populate confext via `import.pull` systemd credential?

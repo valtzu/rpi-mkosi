@@ -8,8 +8,7 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
    * `boot.img` that contains RPi firmware & config + EDK2 firmware with Secure Boot using our custom cert (`mkosi.crt`)
    * `boot.sig` signed with `mkosi.key`. `mkosi.crt` should be included in EEPROM (using `rpi-eeprom-config`) to make the boot chain secure
    * Unified Kernel Image (UKI), signed with `mkosi.key`
-     * `linux-image-generic` from the distribution 
-     * `nvmem-raspberrypi-otp` kernel module from [raspberrypi/linux](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/nvmem/raspberrypi-otp.c)
+     * `linux-image-generic` from the distribution
 2. Readonly `/usr` partition
    * Debian Trixie distribution, other systemd>=256 distros should work too
    * "Golden" `/etc` stored into `/usr/share/factory/etc`
@@ -18,7 +17,7 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 ### On first boot
 
 1. Create encrypted root partition
-   * passphrase from [RPi eeprom OTP registry](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#otp-register-and-bit-definitions)
+   * `Encrypt=tpm2`, sealed against `systemd-tpm2-swtpm.service`'s software TPM (the Pi has no hardware TPM)
    * `/etc` populated from `/usr/share/factory/etc` using `systemd-repart`'s `CopyFiles=`
    * other root directories & files populated with `systemd-tmpfiles` (no custom configuration)
 2. Create 3 empty matching-size partitions (labeled `_empty`) for `/usr` updates
