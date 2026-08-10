@@ -10,7 +10,12 @@ window when even one package's history changes substantially).
 import argparse
 import difflib
 import lzma
+import re
 import sys
+
+VERSION_RE = re.compile(r"^(\S+) \(([^)]+)\) [\w,\-]+; urgency=\S+", re.M)
+CVE_RE = re.compile(r"CVE-\d{4}-\d+")
+MAX_CVES_SHOWN = 8
 
 
 def read_maybe_xz(path: str) -> str:
@@ -50,6 +55,14 @@ def main() -> None:
     p_diff_all.add_argument("old")
     p_diff_all.add_argument("new")
 
+    p_summarize = sub.add_parser(
+        "summarize",
+        help="print a deterministic human-readable Markdown summary of package "
+        "changes, grouped by security fixes / other updates / added / removed",
+    )
+    p_summarize.add_argument("old")
+    p_summarize.add_argument("new")
+
     args = ap.parse_args()
 
     old_blocks = parse_blocks(read_maybe_xz(args.old))
@@ -75,6 +88,99 @@ def main() -> None:
                     tofile="new",
                 )
             )
+    elif args.cmd == "summarize":
+        print(summarize(old_blocks, new_blocks))
+
+
+def first_version(block: str) -> str | None:
+    m = VERSION_RE.search(block)
+    return m.group(2) if m else None
+
+
+def summarize(old_blocks: dict[str, str], new_blocks: dict[str, str]) -> str:
+    """Build a deterministic Markdown summary: no maintainer names, no diff
+    markup, grouped by security fixes / other version bumps / added / removed.
+    Used as the fallback when an LLM-generated summary isn't available, and
+    good enough to ship as-is.
+    """
+    changed = sorted(set(old_blocks) | set(new_blocks))
+
+    security: list[tuple[str, str | None, str | None, list[str]]] = []
+    other_updates: list[tuple[str, str | None, str | None]] = []
+    added: list[tuple[str, str]] = []
+    removed: list[tuple[str, str]] = []
+
+    for name in changed:
+        old_text = old_blocks.get(name, "")
+        new_text = new_blocks.get(name, "")
+        if old_text == new_text:
+            continue
+
+        old_ver = first_version(old_text)
+        new_ver = first_version(new_text)
+
+        if not old_text and new_ver:
+            added.append((name, new_ver))
+            continue
+        if not new_text and old_ver:
+            removed.append((name, old_ver))
+            continue
+
+        added_lines = "\n".join(
+            line[1:]
+            for line in difflib.unified_diff(
+                old_text.splitlines(), new_text.splitlines(), lineterm=""
+            )
+            if line.startswith("+") and not line.startswith("+++")
+        )
+        cves = sorted(set(CVE_RE.findall(added_lines)))
+
+        if old_ver == new_ver and not cves:
+            continue  # rebuild-only noise, nothing user-visible changed
+        if cves:
+            security.append((name, old_ver, new_ver, cves))
+        else:
+            other_updates.append((name, old_ver, new_ver))
+
+    lines = [
+        "Package versions changed across the image; this note lists security "
+        "fixes pulled from each package's changelog. Purely internal/"
+        "packaging-only updates are omitted.",
+        "",
+    ]
+
+    if security:
+        lines.append("## Security fixes")
+        lines.append("")
+        for name, ov, nv, cves in security:
+            shown = cves[:MAX_CVES_SHOWN]
+            rest = len(cves) - len(shown)
+            cve_str = ", ".join(shown) + (f", and {rest} more" if rest > 0 else "")
+            lines.append(f"- **{name}** (`{ov or 'unknown'}` → `{nv or 'unknown'}`): {cve_str}")
+        lines.append("")
+
+    if other_updates:
+        lines.append("## Other package updates")
+        lines.append("")
+        for name, ov, nv in other_updates:
+            lines.append(f"- {name}: `{ov or 'unknown'}` → `{nv or 'unknown'}`")
+        lines.append("")
+
+    if added:
+        lines.append("## Added packages")
+        lines.append("")
+        for name, nv in added:
+            lines.append(f"- {name} (`{nv}`)")
+        lines.append("")
+
+    if removed:
+        lines.append("## Removed packages")
+        lines.append("")
+        for name, ov in removed:
+            lines.append(f"- {name} (was `{ov}`)")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
 
 
 if __name__ == "__main__":

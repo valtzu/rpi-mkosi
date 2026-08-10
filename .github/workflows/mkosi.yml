@@ -72,13 +72,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sha256sum ${{ env.OUTPUT }}*.{raw,efi,changelog}.xz >> SHA256SUMS
+      - name: Append full changelog link
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous_tag=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName -q '.[0].tagName')
+          if [ -n "$previous_tag" ] ; then
+            echo -e "\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previous_tag...${{ github.ref_name }}" >> ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.changelog.diff.md
+          fi
       - name: Release
         uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           draft: true
           fail_on_unmatched_files: true
-          generate_release_notes: true
+          generate_release_notes: false
           body_path: ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.changelog.diff.md
           files: |
             ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.raw.xz

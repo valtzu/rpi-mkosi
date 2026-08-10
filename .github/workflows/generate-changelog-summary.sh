@@ -21,15 +21,23 @@ if [ -e "$diff_path.md" ] ; then
   exit 0
 fi
 
-if [ -z "$GEMINI_API_KEY" ] ; then
-  >&2 echo "GEMINI_API_KEY not set, skipping changelog summary"
+if ! [ -s "$old_changelog" ] ; then
+  >&2 echo "No previous changelog to compare against, skipping changelog summary"
   cp "$diff_path" "$diff_path.md"
   exit 0
 fi
 
-if ! [ -s "$old_changelog" ] ; then
-  >&2 echo "No previous changelog to compare against, skipping changelog summary"
-  cp "$diff_path" "$diff_path.md"
+# A deterministic, non-LLM summary (grouped by security fixes / other
+# updates / added / removed packages, no maintainer names, no diff markup).
+# This is the fallback whenever the AI summary isn't available or fails --
+# it must never be a raw diff dump, so this is computed unconditionally
+# up front rather than only on failure.
+deterministic_path=$(mktemp)
+python3 "$script_dir/changelog_pkg_diff.py" summarize "$old_changelog" "$new_changelog" > "$deterministic_path"
+
+if [ -z "$GEMINI_API_KEY" ] ; then
+  >&2 echo "GEMINI_API_KEY not set, using deterministic changelog summary"
+  mv "$deterministic_path" "$diff_path.md"
   exit 0
 fi
 
@@ -37,7 +45,7 @@ combined_path=$(mktemp)
 python3 "$script_dir/changelog_pkg_diff.py" diff-all "$old_changelog" "$new_changelog" > "$combined_path"
 if ! [ -s "$combined_path" ] ; then
   rm -f "$combined_path"
-  cp "$diff_path" "$diff_path.md"
+  mv "$deterministic_path" "$diff_path.md"
   exit 0
 fi
 
@@ -58,20 +66,28 @@ fixes, etc)."
 
 echo -n "Generating changelog summary with AI..."
 gemini_stderr=$(mktemp)
+# Run from an empty scratch directory rather than the repo checkout: gemini-cli
+# registers filesystem tools (grep/glob/read) at startup regardless of
+# --approval-mode, and this is a CI working directory that also holds the
+# multi-GB mkosi build output -- a prior run OOM'd after gemini-cli's grep
+# tool fell back to a slow JS implementation (no ripgrep on the runner) and
+# scanned it. An empty cwd bounds what any stray tool call can touch.
+gemini_cwd=$(mktemp -d)
 # --skip-trust: headless CI, not an interactive session to persist a trust
 # decision for. No custom tools/policy are configured for this call, so
 # there's nothing folder trust would otherwise be protecting here.
 # The diff is piped via stdin rather than passed as part of -p: putting a
 # large diff directly on the command line risks hitting the OS argument
 # length limit (ARG_MAX), same failure mode hit earlier with curl.
-if output=$(npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-3.5-flash-lite --output-format json < "$combined_path" 2>"$gemini_stderr") \
+if output=$(cd "$gemini_cwd" && npx -y @google/gemini-cli@latest -p "$prompt" --skip-trust --approval-mode=default --model gemini-3.5-flash-lite --output-format json < "$combined_path" 2>"$gemini_stderr") \
    && summary=$(echo "$output" | jq -re '.response') \
    && [ -n "$summary" ] ; then
   echo "$summary" > "$diff_path.md"
   echo " done."
+  rm -f "$deterministic_path"
 else
-  >&2 echo " failed, falling back to raw diff."
+  >&2 echo " failed, falling back to deterministic changelog summary."
   >&2 cat "$gemini_stderr"
-  cp "$diff_path" "$diff_path.md"
+  mv "$deterministic_path" "$diff_path.md"
 fi
-rm -f "$gemini_stderr" "$combined_path"
+rm -rf "$gemini_stderr" "$gemini_cwd" "$combined_path"
