@@ -4,6 +4,7 @@
 /*.raw.xz
 /mkosi.crt
 /mkosi.key
+mkosi.rootpw
 /mkosi.version
 /mkosi.local.conf
 /mkosi.cache/
