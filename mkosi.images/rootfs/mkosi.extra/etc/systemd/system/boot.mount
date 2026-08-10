@@ -1,0 +1,29 @@
+# Full replacement (not a drop-in) for the boot.mount unit that
+# systemd-gpt-auto-generator writes to /run/systemd/generator.late/, which by
+# default is triggered on-demand via boot.automount (TimeoutIdleSec=120s).
+#
+# systemd-tpm2-swtpm.service keeps /boot/loader/swtpm/.lock open for its
+# entire lifetime (see systemd-tpm2-swtpm.service.d/20-restart.conf), but
+# autofs's idle tracking is based on access patterns, not open file
+# descriptors: it doesn't see that fd, so every 120s it decides the mount is
+# idle and tries to unmount it - which then fails with "target is busy" and
+# spams the journal indefinitely, forever, since swtpm never lets go. Mount
+# this eagerly and permanently instead of through an automount that can never
+# actually reclaim it.
+#
+# No [Install] section: nothing here pulls this in by enablement. Instead
+# systemd-tpm2-swtpm.service.d/10-esp.conf (which needs this partition mounted
+# for its whole lifetime anyway) Requires= it directly, which keeps it mounted
+# for the entire system lifetime as a side effect - anything else that touches
+# /boot (bootctl, kernel-install) just finds it already there.
+[Unit]
+Description=EFI System Partition
+Documentation=man:systemd-gpt-auto-generator(8)
+Requires=systemd-fsck@dev-disk-by\x2ddesignator-esp.service
+After=systemd-fsck@dev-disk-by\x2ddesignator-esp.service blockdev@dev-disk-by\x2ddesignator-esp.target
+
+[Mount]
+What=/dev/disk/by-designator/esp
+Where=/boot
+Type=vfat
+Options=fmask=0177,dmask=0077,rw,nodev,nosuid,noexec,nosymfollow
