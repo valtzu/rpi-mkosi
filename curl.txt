@@ -1,4 +1,4 @@
-variable="eeprom_base_url=https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/v2025.01.22-2712"
+expand-variable="eeprom_base_url=https://raw.githubusercontent.com/raspberrypi/rpi-eeprom/{{eeprom_ref}}"
 expand-variable="fw_base_url=https://github.com/raspberrypi/firmware/raw/{{firmware_ref}}"
 expand-variable="fw_dir={{dl_dir}}/firmware"
 expand-variable="eeprom_dir={{dl_dir}}/eeprom"
@@ -36,8 +36,8 @@ expand-output="{{eeprom_dir}}/rpi-eeprom-digest"
 expand-url="{{eeprom_base_url}}/rpi-eeprom-config"
 expand-output="{{eeprom_dir}}/rpi-eeprom-config"
 
-expand-url="{{eeprom_base_url}}/firmware-2711/latest/pieeprom-2024-12-07.bin"
-expand-output="{{eeprom_dir}}/pieeprom.bin"
+expand-url="{{eeprom_base_url}}/firmware-2711/latest/pieeprom-{{eeprom_version}}.bin"
+expand-output="{{eeprom_dir}}/pieeprom-{{eeprom_version}}.bin"
 
 url="https://github.com/k3s-io/k3s/releases/download/v1.29.2+k3s1/k3s-arm64"
 expand-output="{{dl_dir}}/k3s"
