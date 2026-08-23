@@ -2,6 +2,10 @@ arm_64bit=1
 arm_boost=0
 enable_gic=1
 armstub=RPI_EFI.fd
+# Blocks only the raw OTP read API; the HMAC service LoaderBootSecretDxe derives the
+# secret from stays available, as does provisioning the key. The driver locks the rest
+# at ExitBootServices() - this just closes the read path for the whole session.
+lock_device_private_key=1
 disable_commandline_tags=2
 disable_overscan=1
 device_tree_address=0x3e0000
