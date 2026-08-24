@@ -45,7 +45,9 @@ jobs:
           echo -n ${{ github.ref_name }} > mkosi.version
           mkosi --json summary|jq -r '.Images[-1]|{OUTPUT_DIR:.OutputDirectory,OUTPUT:.Output,IMAGE_ID:.ImageId}|to_entries|map("\(.key)=\(.value)\n")|join("")' >> $GITHUB_ENV
       - name: Build images
-        run: mkosi build
+        # forky's apt indices can outrun the mirror's pool during a sync; retry
+        # once to pick up a consistent index rather than fail the whole build.
+        run: mkosi build || mkosi build
       - name: Setup Node.js
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/setup-node@v6
