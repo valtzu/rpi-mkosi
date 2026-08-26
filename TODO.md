@@ -3,12 +3,20 @@ TODO
 
 ## Configuration
 
-### Generate root partition encryption key
+### Provision the root partition encryption key
 
-* Root partition encryption key is read from `/sys/bus/nvmem/devices/nvmem_priv0/nvmem`, but
-  it's all zeros by default. There should be some config switch to write a random value into 
-  it. It is worth noting that it is one-time-programmable, so once the bits go nonzero, there's
-  no going back. 
+* The root partition passphrase is now derived via the firmware mailbox's HMAC-SHA256
+  crypto service (OTP key id 0), not read raw from OTP - see
+  `rpi-crypto-passphrase.c`. This requires OTP key id 0 to already
+  hold a valid ECDSA P-256 private key (the `d` component), not an arbitrary random
+  value. Provisioning is still a manual, one-time, out-of-band step, e.g.:
+  ```
+  openssl ecparam -name prime256v1 -genkey -noout -out private_key.pem
+  openssl ec -in private_key.pem -text -noout | awk '/priv:/{flag=1; next} /pub:/{flag=0} flag' | tr -d ' \n:' | head -n1 > d.hex
+  rpi-otp-private-key -w $(cat d.hex)
+  ```
+  It is worth noting that OTP is one-time-programmable, so once the bits go nonzero,
+  there's no going back. There should be some config switch to drive this.
 
 ### How to populate device-specific configuration 
 

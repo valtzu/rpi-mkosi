@@ -1,0 +1,10 @@
+[Unit]
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+StandardOutput=socket
+ImportCredential=cryptsetup.passphrase
+ExecStartPre=-/usr/sbin/modprobe rpi-crypto-passphrase
+ExecStart=/usr/lib/systemd/rpi-root-passphrase
+ExecStopPost=-systemctl --no-block stop root-passphrase.socket
