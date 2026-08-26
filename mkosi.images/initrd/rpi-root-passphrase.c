@@ -79,7 +79,14 @@ static void disk_name_from_partition(char *name)
 	name[len] = '\0';
 }
 
-static int resolve_root_disk(char *diskname, size_t diskname_size)
+/*
+ * LoaderDevicePartUUID identifies the ESP systemd-boot was loaded from, not
+ * the root partition - but ESP and root are sibling partitions on the same
+ * physical disk in this image (see repart.d/00-esp.conf, 30-root.conf), and
+ * a disk name (not a specific partition) is all the caller needs, so this
+ * still resolves to the right place.
+ */
+static int resolve_boot_disk(char *diskname, size_t diskname_size)
 {
 	char partuuid[64];
 	char path[128];
@@ -98,7 +105,7 @@ static int resolve_root_disk(char *diskname, size_t diskname_size)
 
 	base = strrchr(link, '/');
 	base = base ? base + 1 : link;
-	snprintf(diskname, diskname_size, "%s", base);
+	snprintf(diskname, diskname_size, "%.*s", (int)diskname_size - 1, base);
 	disk_name_from_partition(diskname);
 	return 0;
 }
@@ -142,8 +149,8 @@ static int derive_via_firmware(void)
 	if (fd < 0)
 		return -1;
 
-	if (resolve_root_disk(diskname, sizeof(diskname)) != 0) {
-		fprintf(stderr, "rpi-root-passphrase: failed to resolve root disk\n");
+	if (resolve_boot_disk(diskname, sizeof(diskname)) != 0) {
+		fprintf(stderr, "rpi-root-passphrase: failed to resolve boot disk\n");
 		close(fd);
 		return -1;
 	}
