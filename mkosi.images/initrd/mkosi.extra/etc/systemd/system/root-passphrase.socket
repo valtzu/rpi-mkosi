@@ -1,0 +1,9 @@
+[Unit]
+DefaultDependencies=no
+
+[Socket]
+ListenStream=/run/root-passphrase.sock
+Accept=no
+
+[Install]
+WantedBy=sysinit.target

@@ -9,7 +9,9 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
    * `boot.sig` signed with `mkosi.key`. `mkosi.crt` should be included in EEPROM (using `rpi-eeprom-config`) to make the boot chain secure
    * Unified Kernel Image (UKI), signed with `mkosi.key`
      * `linux-image-generic` from the distribution 
-     * `nvmem-raspberrypi-otp` kernel module from [raspberrypi/linux](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/nvmem/raspberrypi-otp.c)
+     * `rpi-crypto-passphrase` kernel module (`mkosi.profiles/disk/rpi-crypto-passphrase.c`), a small
+       out-of-tree bridge to the firmware's mailbox crypto service, built against the upstream
+       `rpi_firmware_property()` API
 2. Readonly `/usr` partition
    * Debian Trixie distribution, other systemd>=256 distros should work too
    * "Golden" `/etc` stored into `/usr/share/factory/etc`
@@ -18,7 +20,12 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 ### On first boot
 
 1. Create encrypted root partition
-   * passphrase from [RPi eeprom OTP registry](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#otp-register-and-bit-definitions)
+   * passphrase derived by the firmware mailbox's crypto service: HMAC-SHA256 of the root
+     disk's own hardware id (MMC CID / NVMe serial), using the OTP-provisioned private key
+     ([RPi eeprom OTP registry](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#otp-register-and-bit-definitions)).
+     The raw private key never leaves the firmware, and the firmware locks it against further
+     use for the rest of the boot right after computing the HMAC
+     (`root-passphrase.socket`/`.service` + `systemd-repart`'s `KeyFile=` connect-socket support)
    * `/etc` populated from `/usr/share/factory/etc` using `systemd-repart`'s `CopyFiles=`
    * other root directories & files populated with `systemd-tmpfiles` (no custom configuration)
 2. Create 3 empty matching-size partitions (labeled `_empty`) for `/usr` updates

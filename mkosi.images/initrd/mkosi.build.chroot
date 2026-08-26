@@ -1,0 +1,8 @@
+#!/bin/bash -ex
+
+srcdir=$(mktemp -d)
+cp $SRCDIR/mkosi.images/initrd/rpi-root-passphrase.c $srcdir/
+cp $SRCDIR/mkosi.profiles/disk/rpi-crypto-passphrase.h $srcdir/
+
+mkdir -p $DESTDIR/usr/lib/systemd
+gcc -O2 -Wall -o $DESTDIR/usr/lib/systemd/rpi-root-passphrase $srcdir/rpi-root-passphrase.c
