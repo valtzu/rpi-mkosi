@@ -1,5 +1,7 @@
 [Unit]
 DefaultDependencies=no
+Before=systemd-repart.service
+PartOf=systemd-repart.service
 
 [Socket]
 ListenStream=/run/root-passphrase.sock

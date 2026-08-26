@@ -4,6 +4,7 @@ DefaultDependencies=no
 [Service]
 Type=oneshot
 StandardOutput=socket
+StandardError=journal+console
 ImportCredential=cryptsetup.passphrase
 ExecStartPre=-/usr/sbin/modprobe rpi-crypto-passphrase
 ExecStart=/usr/lib/systemd/rpi-root-passphrase
