@@ -18,9 +18,11 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "rpi-crypto-passphrase.h"
@@ -35,8 +37,14 @@ static int write_all(int fd, const void *buf, size_t len)
 	const char *p = buf;
 	while (len > 0) {
 		ssize_t n = write(fd, p, len);
-		if (n <= 0)
+		if (n < 0) {
+			perror("rpi-root-passphrase: write");
 			return -1;
+		}
+		if (n == 0) {
+			fprintf(stderr, "rpi-root-passphrase: write: short write, peer closed?\n");
+			return -1;
+		}
 		p += n;
 		len -= n;
 	}
@@ -138,7 +146,7 @@ static int read_disk_hardware_id(const char *diskname, char *idbuf, size_t idbuf
 	return read_trimmed(path, idbuf, idbuf_size);
 }
 
-static int derive_via_firmware(void)
+static int derive_via_firmware(int out_fd)
 {
 	struct rpi_crypto_passphrase_req req = { 0 };
 	char diskname[64];
@@ -176,13 +184,13 @@ static int derive_via_firmware(void)
 	}
 	close(fd);
 
-	return write_all(STDOUT_FILENO, req.hmac, sizeof(req.hmac));
+	return write_all(out_fd, req.hmac, sizeof(req.hmac));
 }
 
 /* mkosi vm / mkosi qemu: no firmware mailbox, use the dev-only static
  * credential set via [Runtime] Credentials=cryptsetup.passphrase in
  * mkosi.conf, imported into $CREDENTIALS_DIRECTORY by the service unit. */
-static int derive_via_dev_credential(void)
+static int derive_via_dev_credential(int out_fd)
 {
 	const char *cred_dir = getenv("CREDENTIALS_DIRECTORY");
 	char path[PATH_MAX];
@@ -203,7 +211,7 @@ static int derive_via_dev_credential(void)
 	}
 
 	while ((n = read(fd, buf, sizeof(buf))) > 0) {
-		if (write_all(STDOUT_FILENO, buf, n) != 0) {
+		if (write_all(out_fd, buf, n) != 0) {
 			close(fd);
 			return -1;
 		}
@@ -213,10 +221,50 @@ static int derive_via_dev_credential(void)
 	return ret;
 }
 
+/* Standard systemd socket-activation protocol (sd_listen_fds(3)), read
+ * directly off the environment so we don't need to link libsystemd. */
+#define SD_LISTEN_FDS_START 3
+
+static int activation_socket_fd(void)
+{
+	const char *pid = getenv("LISTEN_PID");
+	const char *fds = getenv("LISTEN_FDS");
+
+	if (!pid || !fds || atoi(pid) != (int)getpid() || atoi(fds) != 1)
+		return -1;
+	return SD_LISTEN_FDS_START;
+}
+
 int main(void)
 {
-	if (access(RPI_CRYPTO_DEV, F_OK) == 0)
-		return derive_via_firmware() == 0 ? 0 : 1;
+	int listen_fd, conn, ret;
 
-	return derive_via_dev_credential() == 0 ? 0 : 1;
+	/* A broken connect-socket write must surface as a clean write() error,
+	 * not silently kill us. */
+	signal(SIGPIPE, SIG_IGN);
+
+	listen_fd = activation_socket_fd();
+	if (listen_fd < 0) {
+		fprintf(stderr, "rpi-root-passphrase: not socket-activated\n");
+		return 1;
+	}
+
+	/*
+	 * With Accept=no, socket activation hands us the *listening* socket,
+	 * not a pre-accepted connection (that only happens for per-connection
+	 * Accept=yes instances) - we have to accept() it ourselves.
+	 */
+	conn = accept(listen_fd, NULL, NULL);
+	if (conn < 0) {
+		perror("rpi-root-passphrase: accept");
+		return 1;
+	}
+
+	if (access(RPI_CRYPTO_DEV, F_OK) == 0)
+		ret = derive_via_firmware(conn);
+	else
+		ret = derive_via_dev_credential(conn);
+
+	close(conn);
+	return ret == 0 ? 0 : 1;
 }
