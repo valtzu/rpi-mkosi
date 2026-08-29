@@ -30,27 +30,6 @@ Pi. So the loop is just: `mkosi` in one terminal, reboot the Pi, done.
 - `TGT_IPC_SOCKET` - tgt control socket path (default `mkosi.output/tgt.ipc`;
   `mkosi box` mounts `/run` read-only so tgt's default can't be used).
 
-## Netboot (`dnsmasq.conf`)
-
-The Pi reaches the target via `dnsmasq` running as proxy-DHCP + TFTP (also in
-the tools tree). It needs privileged ports, so it runs as root:
-
-```bash
-sudo mkosi box -- dnsmasq --keep-in-foreground --conf-file=tools/iscsi/dnsmasq.conf
-```
-
-Edit `dnsmasq.conf` for your LAN subnet and target IP. Two stages by DHCP
-vendor class (option 60):
-
-1. `PXEClient:Arch:00000:UNDI:002001` -> the Pi's VideoCore bootloader; it
-   TFTPs `boot.img` / `boot.sig` from `mkosi.output/tftp/`.
-2. `PXEClient:Arch:00011:UNDI:003000` -> EDK2; gets the iSCSI target as DHCP
-   option 17 (`root-path`), which it also passes to Linux via the iBFT.
-
-Still open: populating `mkosi.output/tftp/` with the ESP's signed
-`boot.img`/`boot.sig`, and baking an iSCSI "attempt" into the shipped
-`RPI_EFI.fd` so EDK2 acts on option 17.
-
 ## Notes
 
 - A private copy of the newest `system*.raw` is served as `iscsi-lun.img`, so a
