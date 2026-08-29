@@ -29,14 +29,16 @@ python3 $CACHEDIR/eeprom/rpi-eeprom-config \
   $CACHEDIR/eeprom/pieeprom.bin
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -i $TMPDIR/pieeprom.upd -o $TMPDIR/pieeprom.sig
 
-truncate -s 8M $TMPDIR/boot.img
-mformat -i $TMPDIR/boot.img -L 16 ::
-mcopy -i $TMPDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/config.txt ::
-mcopy -i $TMPDIR/boot.img $TMPDIR/pieeprom.upd $TMPDIR/pieeprom.sig ::
-cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $TMPDIR/boot.img -o $TMPDIR/boot.sig
+# Emitted into $OUTPUTDIR (-> mkosi.output/) as well so it can be served over
+# TFTP/HTTP for netboot, not just baked into the ESP.
+truncate -s 8M $OUTPUTDIR/boot.img
+mformat -i $OUTPUTDIR/boot.img -L 16 ::
+mcopy -i $OUTPUTDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/config.txt ::
+mcopy -i $OUTPUTDIR/boot.img $TMPDIR/pieeprom.upd $TMPDIR/pieeprom.sig ::
+cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $OUTPUTDIR/boot.img -o $OUTPUTDIR/boot.sig
 
 install -m 0755 $CACHEDIR/k3s $BUILDROOT/usr/bin/k3s
-install -m 0400 -D $TMPDIR/boot.{img,sig} $BUILDROOT/efi/
+install -m 0400 -D $OUTPUTDIR/boot.{img,sig} $BUILDROOT/efi/
 
 mkdir -pm 0700 $BUILDROOT/root/.ssh
 # todo: use $(jq -r '.SshKey' $MKOSI_CONFIG) instead of hardcoded mkosi.key once the fix is released https://github.com/systemd/mkosi/pull/2574

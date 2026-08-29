@@ -7,6 +7,7 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 1. ESP (`/efi`) partition
    * `boot.img` that contains RPi firmware & config + EDK2 firmware with Secure Boot using our custom cert (`mkosi.crt`)
    * `boot.sig` signed with `mkosi.key`. `mkosi.crt` should be included in EEPROM (using `rpi-eeprom-config`) to make the boot chain secure
+   * `boot.img` + `boot.sig` are also emitted standalone into `mkosi.output/` (and attached to releases) for TFTP/HTTP netboot
    * Unified Kernel Image (UKI), signed with `mkosi.key`
      * `linux-image-generic` from the distribution 
      * `nvmem-raspberrypi-otp` kernel module from [raspberrypi/linux](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/nvmem/raspberrypi-otp.c)
