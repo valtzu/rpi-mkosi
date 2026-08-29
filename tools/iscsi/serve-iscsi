@@ -23,7 +23,8 @@ export TGT_IPC_SOCKET=${TGT_IPC_SOCKET:-$(realpath -m "$OUTPUT/tgt.ipc")}
 
 # The Pi mutates its disk (repart on first boot, /etc, logs) and a rebuild
 # reuses the same output path - serve a private copy, not the artifact itself.
-newest() { ls -t "$OUTPUT"/system*.raw 2>/dev/null | grep -vxF "$LUN" | head -1; }
+# the full disk image, not the split usr/verity partition artifacts or our copy
+newest() { ls -t "$OUTPUT"/system*.raw 2>/dev/null | grep -vE '\.usr|iscsi-lun' | head -1; }
 connected() { tgtadm --lld iscsi --op show --mode conn --tid 1 2>/dev/null | grep -q 'Connection:'; }
 set_lun() {
 	cp --reflink=auto "$1" "$LUN.tmp"
