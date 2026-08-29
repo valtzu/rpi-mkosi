@@ -13,10 +13,11 @@ needs no root and no container runtime.
 `mkosi --profile dev` needs an untracked `dev.local.conf` at the repo root
 (copy `dev.local.conf.example`):
 
-- `DEV_HOST` - this machine's LAN IP (the iSCSI portal).
 - `PI_MAC` - the Pi's Ethernet MAC. `mkosi.finalize` runs
   `tools/iscsi/edk2-iscsi-efivars` to bake a static iSCSI "Attempt 1" into the
   UEFI varstore in `boot.img`; EDK2 only loads it if this MAC matches the NIC.
+- `DEV_HOST` - optional; the iSCSI portal, defaults to this machine's primary
+  IP (`hostname -I`). Set it only if that picks the wrong interface.
 
 EDK2 takes iSCSI config only from NVRAM or DHCP, and the RPi UEFI runs from a
 signed ramdisk so menu edits never persist - hence baking the variable.
