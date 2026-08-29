@@ -21,6 +21,8 @@ virt-fw-vars \
 # attaches the locally served image (see tools/iscsi/). The portal defaults to
 # this machine's primary IP; only the Pi's MAC (which EDK2 matches against the
 # NIC) has to be supplied, via an untracked dev.local.conf.
+BOOTCONF=$SRCDIR/bootconf.txt
+
 if printf '%s' "$PROFILES" | grep -qw dev; then
     [ -e "$SRCDIR/dev.local.conf" ] && . "$SRCDIR/dev.local.conf"
     : "${DEV_HOST:=$(hostname -I | awk '{print $1}')}"
@@ -32,14 +34,19 @@ if printf '%s' "$PROFILES" | grep -qw dev; then
       --initiator-iqn iqn.2026-08.lan.local:rpi-dev-client \
       --out $TMPDIR/iscsi-efivars.json
     virt-fw-vars -i ./RPI_EFI.fd -o ./RPI_EFI.fd --set-json $TMPDIR/iscsi-efivars.json
+
+    # HTTP-boot boot.img from `mkosi serve` (:8081); try HTTP, then USB, then SD.
+    BOOTCONF=$TMPDIR/bootconf.txt
+    sed 's/^BOOT_ORDER=.*/BOOT_ORDER=0xf147/' $SRCDIR/bootconf.txt > $BOOTCONF
+    printf 'HTTP_HOST=%s\nHTTP_PORT=8081\n' "$DEV_HOST" >> $BOOTCONF
 fi
 
 # Only the config is RSA-signed; pieeprom.sig is a corruption guard, not a signature.
-cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $SRCDIR/bootconf.txt -o $TMPDIR/bootconf.sig
+cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $BOOTCONF -o $TMPDIR/bootconf.sig
 # --pubkey would accept mkosi.key itself; keep the private key out of the tool.
 openssl rsa -in $SRCDIR/mkosi.key -pubout -out $TMPDIR/mkosi.pub
 python3 $CACHEDIR/eeprom/rpi-eeprom-config \
-  --config $SRCDIR/bootconf.txt \
+  --config $BOOTCONF \
   --digest $TMPDIR/bootconf.sig \
   --pubkey $TMPDIR/mkosi.pub \
   --out $TMPDIR/pieeprom.upd \

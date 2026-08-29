@@ -1,0 +1,37 @@
+#!/bin/bash
+# Write the minimal boot chain to a USB/SD: a single FAT partition holding the
+# signed boot.img ramdisk and a config.txt. No OS ESP, so EDK2 finds no local
+# \EFI\BOOT\BOOTAA64.efi and falls through to the iSCSI attempt baked into
+# RPI_EFI.fd (see tools/iscsi/ and `mkosi --profile dev`).
+#
+# It's the offline fallback for BOOT_ORDER=0xf147 (HTTP, then USB, then SD);
+# the boot.img it carries also self-updates the EEPROM with HTTP_HOST etc.
+#
+#   tools/iscsi/burn-boot /dev/disk/by-id/usb-<...>
+set -euo pipefail
+
+dev=${1:?usage: burn-boot /dev/disk/by-id/<device>}
+out=${MKOSI_OUTPUT:-mkosi.output}
+
+case "$dev" in /dev/disk/by-id/*) ;; *)
+    echo "refusing $dev - pass a /dev/disk/by-id/ path" >&2; exit 1 ;;
+esac
+for f in boot.img boot.sig; do
+    [ -e "$out/$f" ] || { echo "missing $out/$f - run: mkosi --profile dev" >&2; exit 1; }
+done
+
+read -rp "This ERASES $(readlink -f "$dev"). Continue? [y/N] " ok
+[ "$ok" = y ] || exit 1
+
+sudo sfdisk --wipe always "$dev" <<'PART'
+label: dos
+- - c *
+PART
+sudo udevadm settle
+part=$(lsblk -rnpo NAME "$dev" | sed -n 2p)
+
+sudo mkfs.vfat -F32 -n RPIBOOT "$part"
+printf 'boot_ramdisk=1\nenable_uart=1\nuart_2ndstage=1\n' | sudo mcopy -i "$part" - ::config.txt
+sudo mcopy -i "$part" "$out/boot.img" "$out/boot.sig" ::
+sudo sync
+echo "wrote config.txt + boot.img + boot.sig to $part"

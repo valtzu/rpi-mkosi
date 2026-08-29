@@ -22,22 +22,42 @@ needs no root and no container runtime.
 EDK2 takes iSCSI config only from NVRAM or DHCP, and the RPi UEFI runs from a
 signed ramdisk so menu edits never persist - hence baking the variable.
 
-## Usage
+The dev profile also sets `BOOT_ORDER=0xf147` (HTTP, then USB, then SD) and
+`HTTP_HOST`/`HTTP_PORT=8081` in the EEPROM config, so the Pi HTTP-boots
+`boot.img` straight from `mkosi serve`.
 
-From the repo root, leave this running:
+## First-time setup
+
+1. `cp dev.local.conf.example dev.local.conf` and set `PI_MAC`.
+2. `mkosi --profile dev`
+3. Write the fallback boot medium (also self-updates the EEPROM on first boot):
+
+   ```bash
+   tools/iscsi/burn-boot /dev/disk/by-id/usb-<...>
+   ```
+
+   This is a bare FAT partition with `boot.img` + `boot.sig` + `config.txt` -
+   no OS ESP, so EDK2 has no local boot target and uses the iSCSI attempt.
+
+## The loop
+
+Two terminals from the repo root, both left running:
 
 ```bash
 mkosi box -- tools/iscsi/serve-iscsi
 ```
 
-Target: `iqn.2026-08.lan.local:rpi-dev`, LUN 1, TCP `3260` on the host. Open
-3260 to the Pi's subnet if the host firewalls it. Stop with Ctrl-C.
+```bash
+mkosi --profile dev serve
+```
 
-It watches `mkosi.output` and re-points the LUN at each new build automatically -
-but only while no initiator is connected, since a live swap would corrupt the
-Pi. So the loop is just: `mkosi` in one terminal, reboot the Pi, done.
+Then `mkosi --profile dev` to rebuild, and reboot the Pi. `serve` re-serves
+`mkosi.output` over HTTP:8081; `serve-iscsi` (target `iqn.2026-08.lan.local:rpi-dev`,
+LUN 1, TCP 3260) re-points the LUN once the Pi disconnects - so a rebuild
+mid-session can't corrupt it. Open 3260 to the Pi's subnet if the host
+firewalls it.
 
-## Config (env)
+## serve-iscsi config (env)
 
 - `IQN` - target name (default `iqn.2026-08.lan.local:rpi-dev`).
 - `MKOSI_OUTPUT` - output directory (default `mkosi.output`).
