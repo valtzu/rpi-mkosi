@@ -20,13 +20,13 @@ virt-fw-vars \
 # dev profile: bake a static iSCSI boot attempt into the UEFI varstore so EDK2
 # attaches the locally served image (see tools/iscsi/). The portal defaults to
 # this machine's primary IP; only the Pi's MAC (which EDK2 matches against the
-# NIC) has to be supplied, via an untracked dev.local.conf.
+# NIC) has to be supplied, via [Build] Environment= in an untracked
+# mkosi.local.conf.
 BOOTCONF=$SRCDIR/bootconf.txt
 
 if printf '%s' "$PROFILES" | grep -qw dev; then
-    [ -e "$SRCDIR/dev.local.conf" ] && . "$SRCDIR/dev.local.conf"
     : "${DEV_HOST:=$(hostname -I | awk '{print $1}')}"
-    : "${PI_MAC:?set PI_MAC in dev.local.conf to the Pi Ethernet MAC address}"
+    : "${PI_MAC:?set PI_MAC via [Build] Environment= in mkosi.local.conf}"
     python3 "$SRCDIR/tools/iscsi/edk2-iscsi-efivars" \
       --mac "$PI_MAC" \
       --target-ip "$DEV_HOST" \

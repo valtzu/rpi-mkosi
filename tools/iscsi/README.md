@@ -8,10 +8,15 @@ Boot the Pi from a locally served image instead of reflashing a USB disk.
 top-level `mkosi.conf`), and `mkosi box` keeps host networking - so this
 needs no root and no container runtime.
 
-## Per-machine config: `dev.local.conf`
+## Per-machine config: `mkosi.local.conf`
 
-`mkosi --profile dev` needs an untracked `dev.local.conf` at the repo root
-(copy `dev.local.conf.example`):
+`mkosi --profile dev` needs an untracked `mkosi.local.conf` at the repo root:
+
+```
+[Build]
+Environment=
+    PI_MAC=dc:a6:32:00:00:00
+```
 
 - `PI_MAC` - the Pi's Ethernet MAC. `mkosi.finalize` runs
   `tools/iscsi/edk2-iscsi-efivars` to bake a static iSCSI "Attempt 1" into the
@@ -28,7 +33,7 @@ The dev profile also sets `BOOT_ORDER=0xf147` (HTTP, then USB, then SD) and
 
 ## First-time setup
 
-1. `cp dev.local.conf.example dev.local.conf` and set `PI_MAC`.
+1. create `mkosi.local.conf` with `PI_MAC` (see above).
 2. `mkosi --profile dev`
 3. Write the fallback boot medium (also self-updates the EEPROM on first boot):
 

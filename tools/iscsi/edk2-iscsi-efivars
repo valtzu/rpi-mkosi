@@ -18,6 +18,7 @@ import struct
 # NetworkPkg/Include/Guid/IScsiConfigHii.h + MdePkg (little-endian mixed-endian GUID)
 GUID_ATTEMPT = "59324945-ec44-4c0d-b1cd-9db139df070c"   # gEfiIScsiInitiatorNameProtocolGuid
 GUID_CONFIG = "4b47d616-a8d6-4552-9d44-ccad2e0f4cf9"    # gIScsiConfigGuid
+GUID_BDP = "5b6f7107-bb3c-4660-92cd-542690280bbd"       # BootDiscoveryPolicyMgr
 ATTR_NV_BS = 0x3
 
 ISCSI_NAME_MAX_SIZE = 224
@@ -129,6 +130,12 @@ def main() -> None:
              "data": "01"},
             {"name": "I_NAME", "guid": GUID_ATTEMPT, "attr": ATTR_NV_BS,
              "data": (args.initiator_iqn.encode() + b"\0").hex()},
+            # PFTF's default "minimal" boot discovery never connects the network
+            # stack, so the iSCSI attempt above is never tried. BDP_CONNECT_ALL
+            # makes BDS connect everything (incl. the iSCSI driver) and refresh
+            # the boot options, exposing the target's ESP.
+            {"name": "BootDiscoveryPolicy", "guid": GUID_BDP, "attr": ATTR_NV_BS,
+             "data": "02000000"},
         ],
     }
     with open(args.out, "w") as f:
