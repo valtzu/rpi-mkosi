@@ -1,0 +1,69 @@
+#!/bin/bash
+# Serve the latest built image over iSCSI so the Pi can netboot it instead of a
+# physical USB disk. Run inside the tools tree (which provides tgt):
+#
+#   mkosi box -- tools/iscsi/serve-iscsi
+#
+# mkosi box keeps host networking, so the target is reachable on the LAN at
+# TCP 3260 with no root and no container runtime. Leave it running: it watches
+# the output directory and re-points the LUN at each new build automatically,
+# but only while no initiator is connected (a live swap would corrupt the Pi).
+#
+# Stop it with Ctrl-C. If a tgtd is somehow left behind: pkill -9 tgtd
+set -eu
+
+IQN=${IQN:-iqn.2026-08.lan.local:rpi-dev}
+OUTPUT=${MKOSI_OUTPUT:-mkosi.output}
+LUN=$(realpath -m "$OUTPUT/iscsi-lun.img")
+POLL=${POLL:-5}
+
+# mkosi box mounts /run read-only; move tgt's control socket (and its lock)
+# somewhere writable. Manual tgtadm needs this same value in its environment.
+export TGT_IPC_SOCKET=${TGT_IPC_SOCKET:-$(realpath -m "$OUTPUT/tgt.ipc")}
+
+# The Pi mutates its disk (repart on first boot, /etc, logs) and a rebuild
+# reuses the same output path - serve a private copy, not the artifact itself.
+newest() { ls -t "$OUTPUT"/system*.raw 2>/dev/null | grep -vxF "$LUN" | head -1; }
+connected() { tgtadm --lld iscsi --op show --mode conn --tid 1 2>/dev/null | grep -q 'Connection:'; }
+set_lun() {
+	cp --reflink=auto "$1" "$LUN.tmp"
+	mv "$LUN.tmp" "$LUN"
+	tgtadm --lld iscsi --op delete --mode logicalunit --tid 1 --lun 1 2>/dev/null || true
+	tgtadm --lld iscsi --op new    --mode logicalunit --tid 1 --lun 1 -b "$LUN"
+}
+
+if tgtadm --lld iscsi --op show --mode target 2>/dev/null | grep -q "T: $IQN"; then
+	echo "a tgtd is already serving $IQN - stop it first (pkill -9 tgtd)" >&2
+	exit 1
+fi
+
+src=$(newest || true)
+while [ -z "$src" ]; do
+	echo "waiting for $OUTPUT/system*.raw ..." >&2
+	sleep "$POLL"
+	src=$(newest || true)
+done
+
+(
+	until tgtadm --op show --mode target >/dev/null 2>&1; do sleep 0.1; done
+	tgtadm --lld iscsi --op new --mode target --tid 1 -T "$IQN"
+	set_lun "$src"
+	tgtadm --lld iscsi --op bind --mode target --tid 1 -I ALL
+	served=$src
+	echo "serving $served as $IQN on TCP/3260" >&2
+
+	while sleep "$POLL"; do
+		tgtadm --op show --mode target >/dev/null 2>&1 || exit 0
+		next=$(newest || true)
+		[ -n "$next" ] && [ "$next" != "$served" ] || continue
+		if connected; then
+			echo "new build $next - waiting for the Pi to disconnect" >&2
+			continue
+		fi
+		set_lun "$next"
+		served=$next
+		echo "LUN now serving $served" >&2
+	done
+) &
+
+exec tgtd -f
