@@ -36,9 +36,10 @@ if printf '%s' "$PROFILES" | grep -qw dev; then
     virt-fw-vars -i ./RPI_EFI.fd -o ./RPI_EFI.fd --set-json $TMPDIR/iscsi-efivars.json
 
     # HTTP-boot boot.img from `mkosi serve` (:8081); try HTTP, then USB, then SD.
+    # HTTP_PATH is emptied - it otherwise defaults to "net_install".
     BOOTCONF=$TMPDIR/bootconf.txt
     sed 's/^BOOT_ORDER=.*/BOOT_ORDER=0xf147/' $SRCDIR/bootconf.txt > $BOOTCONF
-    printf 'HTTP_HOST=%s\nHTTP_PORT=8081\n' "$DEV_HOST" >> $BOOTCONF
+    printf 'HTTP_HOST=%s\nHTTP_PORT=8081\nHTTP_PATH=\n' "$DEV_HOST" >> $BOOTCONF
 fi
 
 # Only the config is RSA-signed; pieeprom.sig is a corruption guard, not a signature.
