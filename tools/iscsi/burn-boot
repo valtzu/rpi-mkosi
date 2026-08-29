@@ -8,10 +8,14 @@
 # the boot.img it carries also self-updates the EEPROM with HTTP_HOST etc.
 #
 #   tools/iscsi/burn-boot /dev/disk/by-id/usb-<...>
+#
+# PRIV overrides the privilege-escalation command (default sudo, e.g. PRIV=pkexec).
+# FORCE=1 or a non-interactive stdin skips the confirmation prompt.
 set -euo pipefail
 
 dev=${1:?usage: burn-boot /dev/disk/by-id/<device>}
-out=${MKOSI_OUTPUT:-mkosi.output}
+out=$(cd "${MKOSI_OUTPUT:-mkosi.output}" && pwd)
+priv=${PRIV:-sudo}
 
 case "$dev" in /dev/disk/by-id/*) ;; *)
     echo "refusing $dev - pass a /dev/disk/by-id/ path" >&2; exit 1 ;;
@@ -20,18 +24,19 @@ for f in boot.img boot.sig; do
     [ -e "$out/$f" ] || { echo "missing $out/$f - run: mkosi --profile dev" >&2; exit 1; }
 done
 
-read -rp "This ERASES $(readlink -f "$dev"). Continue? [y/N] " ok
-[ "$ok" = y ] || exit 1
+if [ -z "${FORCE:-}" ] && [ -t 0 ]; then
+    read -rp "This ERASES $(readlink -f "$dev"). Continue? [y/N] " ok
+    [ "$ok" = y ] || exit 1
+fi
 
-sudo sfdisk --wipe always "$dev" <<'PART'
-label: dos
-- - c *
-PART
-sudo udevadm settle
-part=$(lsblk -rnpo NAME "$dev" | sed -n 2p)
+printf 'label: dos\n- - c *\n' | $priv sfdisk --wipe always "$dev"
+$priv udevadm settle
+part=$(readlink -f "$dev-part1")
 
-sudo mkfs.vfat -F32 -n RPIBOOT "$part"
-printf 'boot_ramdisk=1\nenable_uart=1\nuart_2ndstage=1\n' | sudo mcopy -i "$part" - ::config.txt
-sudo mcopy -i "$part" "$out/boot.img" "$out/boot.sig" ::
-sudo sync
+$priv mkfs.vfat -F32 -n RPIBOOT "$part"
+printf 'boot_ramdisk=1\nenable_uart=1\nuart_2ndstage=1\n' >"$out/.config.txt"
+$priv mcopy -i "$part" "$out/.config.txt" ::config.txt
+$priv mcopy -i "$part" "$out/boot.img" "$out/boot.sig" ::
+rm -f "$out/.config.txt"
+$priv sync
 echo "wrote config.txt + boot.img + boot.sig to $part"
