@@ -20,8 +20,7 @@ virt-fw-vars \
 # dev profile: bake a static iSCSI boot attempt into the UEFI varstore so EDK2
 # attaches the locally served image (see tools/iscsi/). PI_MAC + DEV_HOST are
 # per-machine, so they come from an untracked dev.local.conf.
-case " $PROFILES " in
-  *" dev "*)
+if printf '%s' "$PROFILES" | grep -qw dev; then
     . "$SRCDIR/dev.local.conf"
     python3 "$SRCDIR/tools/iscsi/edk2-iscsi-efivars" \
       --mac "$PI_MAC" \
@@ -30,8 +29,7 @@ case " $PROFILES " in
       --initiator-iqn iqn.2026-08.lan.local:rpi-dev-client \
       --out $TMPDIR/iscsi-efivars.json
     virt-fw-vars -i ./RPI_EFI.fd -o ./RPI_EFI.fd --set-json $TMPDIR/iscsi-efivars.json
-    ;;
-esac
+fi
 
 # Only the config is RSA-signed; pieeprom.sig is a corruption guard, not a signature.
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $SRCDIR/bootconf.txt -o $TMPDIR/bootconf.sig
