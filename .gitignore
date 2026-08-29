@@ -7,6 +7,7 @@
 mkosi.rootpw
 /mkosi.version
 /mkosi.local.conf
+/dev.local.conf
 /mkosi.cache/
 /mkosi.output/
 /mkosi.tools.manifest

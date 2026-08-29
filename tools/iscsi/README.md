@@ -1,11 +1,25 @@
 # iSCSI dev target
 
-Serves the latest built image (`mkosi.output/system*.raw`) over iSCSI so the Pi
-can netboot it instead of a physical USB disk.
+Boot the Pi from a locally served image instead of reflashing a USB disk.
+`mkosi --profile dev` builds an image whose EDK2 attaches root over iSCSI;
+`serve-iscsi` on this machine serves it.
 
 `tgt` is installed into the default tools tree (`ToolsTreePackages=` in the
 top-level `mkosi.conf`), and `mkosi box` keeps host networking - so this
 needs no root and no container runtime.
+
+## Per-machine config: `dev.local.conf`
+
+`mkosi --profile dev` needs an untracked `dev.local.conf` at the repo root
+(copy `dev.local.conf.example`):
+
+- `DEV_HOST` - this machine's LAN IP (the iSCSI portal).
+- `PI_MAC` - the Pi's Ethernet MAC. `mkosi.finalize` runs
+  `tools/iscsi/edk2-iscsi-efivars` to bake a static iSCSI "Attempt 1" into the
+  UEFI varstore in `boot.img`; EDK2 only loads it if this MAC matches the NIC.
+
+EDK2 takes iSCSI config only from NVRAM or DHCP, and the RPi UEFI runs from a
+signed ramdisk so menu edits never persist - hence baking the variable.
 
 ## Usage
 

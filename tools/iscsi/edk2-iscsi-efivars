@@ -1,0 +1,141 @@
+#!/usr/bin/env python3
+"""Generate the EDK2 NVRAM variables for a static IPv4 iSCSI boot attempt,
+as a virt-fw-vars --set-json payload.
+
+EDK2's iSCSI stack only takes its target config from NVRAM (or DHCP); iBFT and
+the boot device path are outputs, not inputs. The RPi UEFI runs from a signed
+ramdisk so menu changes never persist - hence baking the "Attempt 1" blob here.
+
+Layout mirrors NetworkPkg/IScsiDxe (ISCSI_ATTEMPT_CONFIG_NVDATA /
+ISCSI_SESSION_CONFIG_NVDATA, both #pragma pack(1)). At boot IScsiGetConfigData
+loads "Attempt 1" only if AttemptOrder lists it, Actived == 1, and MacString
+matches the NIC exactly - so the Pi's MAC has to be correct.
+"""
+import argparse
+import json
+import struct
+
+# NetworkPkg/Include/Guid/IScsiConfigHii.h + MdePkg (little-endian mixed-endian GUID)
+GUID_ATTEMPT = "59324945-ec44-4c0d-b1cd-9db139df070c"   # gEfiIScsiInitiatorNameProtocolGuid
+GUID_CONFIG = "4b47d616-a8d6-4552-9d44-ccad2e0f4cf9"    # gIScsiConfigGuid
+ATTR_NV_BS = 0x3
+
+ISCSI_NAME_MAX_SIZE = 224
+ATTEMPT_NAME_SIZE = 12
+ISCSI_MAX_MAC_STRING_LEN = 96
+ISCSI_TARGET_URI_MAX_SIZE = 255
+CHAP_NAME_STORAGE = 127
+CHAP_SECRET_STORAGE = 17
+ISCSI_WELL_KNOWN_PORT = 3260
+
+IP_MODE_IP4 = 0
+ISCSI_ENABLED = 1
+ISCSI_ACTIVE_ENABLED = 1
+ISCSI_AUTH_TYPE_NONE = 0
+
+
+def cstr(s: str, size: int) -> bytes:
+    b = s.encode()
+    if len(b) + 1 > size:
+        raise ValueError(f"{s!r} does not fit in {size} bytes")
+    return b.ljust(size, b"\0")
+
+
+def mac_string(mac: str) -> str:
+    parts = mac.replace("-", ":").split(":")
+    if len(parts) != 6:
+        raise ValueError(f"bad MAC: {mac}")
+    return ":".join(f"{int(p, 16):02X}" for p in parts)
+
+
+def boot_lun(lun: int) -> bytes:
+    # IScsiAsciiStrToLun: Lun[0:2] = HTONS(lun), remaining groups zero
+    return struct.pack(">H", lun) + b"\0" * 6
+
+
+def session_config(target_ip: str, target_iqn: str, mac: bytes, lun: int) -> bytes:
+    ip4 = bytes(int(o) for o in target_ip.split(".")) + b"\0" * 12
+    isid = bytes([mac[0] & 0x3F]) + mac[1:6]
+    return b"".join([
+        struct.pack("<H", ISCSI_WELL_KNOWN_PORT),   # TargetPort
+        bytes([ISCSI_ENABLED]),                     # Enabled
+        bytes([IP_MODE_IP4]),                       # IpMode
+        b"\0" * 16,                                 # LocalIp
+        b"\0" * 4,                                  # SubnetMask
+        b"\0" * 16,                                 # Gateway
+        bytes([1]),                                 # InitiatorInfoFromDhcp
+        bytes([0]),                                 # TargetInfoFromDhcp
+        cstr(target_iqn, ISCSI_NAME_MAX_SIZE),      # TargetName
+        ip4,                                        # TargetIp
+        bytes([0]),                                 # PrefixLength
+        boot_lun(lun),                              # BootLun
+        struct.pack("<H", 1000),                    # ConnectTimeout
+        bytes([0]),                                 # ConnectRetryCount
+        isid,                                       # IsId[6]
+        bytes([0]),                                 # RedirectFlag
+        struct.pack("<H", 0),                       # OriginalTargetPort
+        b"\0" * 16,                                 # OriginalTargetIp
+        bytes([0]),                                 # DnsMode
+        b"\0" * ISCSI_TARGET_URI_MAX_SIZE,          # TargetUrl
+    ])
+
+
+def attempt_config(mac_str: str, session: bytes) -> bytes:
+    chap = bytes([0]) + b"\0" * (CHAP_NAME_STORAGE + CHAP_SECRET_STORAGE
+                                 + CHAP_NAME_STORAGE + CHAP_SECRET_STORAGE)
+    return b"".join([
+        b"\0" * 16,                                 # LIST_ENTRY Link (fixed up on load)
+        bytes([0]),                                 # NicIndex
+        bytes([1]),                                 # AttemptConfigIndex
+        bytes([0]),                                 # DhcpSuccess
+        bytes([0]),                                 # ValidiBFTPath
+        bytes([0]),                                 # ValidPath
+        bytes([0]),                                 # AutoConfigureMode
+        struct.pack("<H", 0),                       # AttemptTitleToken
+        struct.pack("<H", 0),                       # AttemptTitleHelpToken
+        cstr("Attempt 1", ATTEMPT_NAME_SIZE),       # AttemptName
+        cstr(mac_str, ISCSI_MAX_MAC_STRING_LEN),    # MacString
+        b"\0" * 16, b"\0" * 16, b"\0" * 16,         # PrimaryDns, SecondaryDns, DhcpServer
+        session,                                    # SessionConfigData
+        bytes([ISCSI_AUTH_TYPE_NONE]),              # AuthenticationType
+        chap,                                       # AuthConfigData.CHAP
+        bytes([0]),                                 # AutoConfigureSuccess
+        bytes([ISCSI_ACTIVE_ENABLED]),             # Actived
+    ])
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--mac", required=True, help="Pi NIC MAC, e.g. dc:a6:32:12:34:56")
+    ap.add_argument("--target-ip", required=True)
+    ap.add_argument("--target-iqn", required=True)
+    ap.add_argument("--initiator-iqn", required=True)
+    ap.add_argument("--lun", type=int, default=1)
+    ap.add_argument("--out", required=True)
+    args = ap.parse_args()
+
+    mac_bytes = bytes(int(p, 16) for p in args.mac.replace("-", ":").split(":"))
+    session = session_config(args.target_ip, args.target_iqn, mac_bytes, args.lun)
+    attempt = attempt_config(mac_string(args.mac), session)
+
+    payload = {
+        "version": 2,
+        "variables": [
+            {"name": "Attempt 1", "guid": GUID_ATTEMPT, "attr": ATTR_NV_BS,
+             "data": attempt.hex()},
+            {"name": "AttemptOrder", "guid": GUID_CONFIG, "attr": ATTR_NV_BS,
+             "data": "01"},
+            {"name": "InitialAttemptOrder", "guid": GUID_CONFIG, "attr": ATTR_NV_BS,
+             "data": "01"},
+            {"name": "I_NAME", "guid": GUID_ATTEMPT, "attr": ATTR_NV_BS,
+             "data": (args.initiator_iqn.encode() + b"\0").hex()},
+        ],
+    }
+    with open(args.out, "w") as f:
+        json.dump(payload, f, indent=2)
+    print(f"{args.out}: Attempt 1 = {len(attempt)} bytes, target "
+          f"{args.target_iqn} @ {args.target_ip}:3260 lun {args.lun}")
+
+
+if __name__ == "__main__":
+    main()

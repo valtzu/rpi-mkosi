@@ -1,0 +1,8 @@
+# Copy to dev.local.conf (untracked) and fill in for `mkosi --profile dev`.
+
+# This machine's LAN IP - where tools/iscsi/serve-iscsi and `mkosi serve` run.
+DEV_HOST=192.168.2.2
+
+# The Pi's onboard Ethernet MAC. EDK2 only loads the baked iSCSI attempt if this
+# matches the NIC exactly. Read it off the Pi (`ip link`) or the sticker.
+PI_MAC=dc:a6:32:00:00:00

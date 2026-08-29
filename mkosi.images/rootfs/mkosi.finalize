@@ -17,6 +17,22 @@ virt-fw-vars \
   --enroll-cert $SRCDIR/mkosi.crt \
   --add-db a0baa8a3-041d-48a8-bc87-c36d121b5e3d $SRCDIR/mkosi.crt
 
+# dev profile: bake a static iSCSI boot attempt into the UEFI varstore so EDK2
+# attaches the locally served image (see tools/iscsi/). PI_MAC + DEV_HOST are
+# per-machine, so they come from an untracked dev.local.conf.
+case " $PROFILES " in
+  *" dev "*)
+    . "$SRCDIR/dev.local.conf"
+    python3 "$SRCDIR/tools/iscsi/edk2-iscsi-efivars" \
+      --mac "$PI_MAC" \
+      --target-ip "$DEV_HOST" \
+      --target-iqn iqn.2026-08.lan.local:rpi-dev \
+      --initiator-iqn iqn.2026-08.lan.local:rpi-dev-client \
+      --out $TMPDIR/iscsi-efivars.json
+    virt-fw-vars -i ./RPI_EFI.fd -o ./RPI_EFI.fd --set-json $TMPDIR/iscsi-efivars.json
+    ;;
+esac
+
 # Only the config is RSA-signed; pieeprom.sig is a corruption guard, not a signature.
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $SRCDIR/bootconf.txt -o $TMPDIR/bootconf.sig
 # --pubkey would accept mkosi.key itself; keep the private key out of the tool.
