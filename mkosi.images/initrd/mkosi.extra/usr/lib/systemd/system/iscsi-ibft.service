@@ -1,0 +1,17 @@
+[Unit]
+Description=Log in to iSCSI root described by iBFT
+DefaultDependencies=no
+# /sys/firmware/ibft only appears when iscsi_ibft found a table (i.e. the Pi
+# firmware handed off an iSCSI boot); on SD/USB boots this is a no-op.
+ConditionPathExists=/sys/firmware/ibft/target0
+After=systemd-modules-load.service
+Before=initrd-root-device.target
+Wants=initrd-root-device.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/iscsistart -b
+
+[Install]
+WantedBy=initrd-root-device.target
