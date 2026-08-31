@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install mkosi
-        uses: systemd/mkosi@v26
+        uses: systemd/mkosi@v27
       - name: Tolerate missing package changelogs
         run: |
           action_path=$(dirname "$(dirname "$(readlink -f /usr/bin/mkosi)")")
