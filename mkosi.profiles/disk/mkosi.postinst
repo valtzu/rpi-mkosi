@@ -1,0 +1,9 @@
+#!/bin/bash -ex
+
+# Run depmod on the host against $BUILDROOT rather than inside the target
+# chroot: dependency resolution only parses ELF symbols and is arch-agnostic,
+# so the native tools-tree binary does in seconds what the qemu-user-emulated
+# arm64 depmod takes minutes to do.
+
+kver=$(basename "$BUILDROOT"/usr/lib/modules/*)
+depmod --all --basedir="$BUILDROOT" "$kver"
