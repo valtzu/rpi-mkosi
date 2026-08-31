@@ -30,6 +30,18 @@
       "guid": "8be4df61-93ca-11d2-aa0d-00e098032b8c",
       "attr": 7,
       "data": "00000000"
+    },
+    {
+      "name": "BootDiscoveryPolicy",
+      "guid": "5b6f7107-bb3c-4660-92cd-542690280bbd",
+      "attr": 7,
+      "data": "00000000"
+    },
+    {
+      "name": "BootDiscoveryPolicyOld",
+      "guid": "5b6f7107-bb3c-4660-92cd-542690280bbd",
+      "attr": 3,
+      "data": "00000000"
     }
   ]
 }
