@@ -17,6 +17,16 @@ virt-fw-vars \
   --enroll-cert $SRCDIR/mkosi.crt \
   --add-db a0baa8a3-041d-48a8-bc87-c36d121b5e3d $SRCDIR/mkosi.crt
 
+# rpi-eeprom-digest stamps "ts: $(date -u +%s)" into the .sig files unless
+# SOURCE_DATE_EPOCH is set, and bootconf.sig is embedded verbatim into
+# pieeprom.upd. Without this every build produced a byte-different image, so the
+# bootloader self-update reflashed the EEPROM on the next boot. Pin it to the
+# newest mtime of the inputs that actually end up in the EEPROM: stable across
+# rebuilds of an unchanged tree (no reflash), advances the moment bootconf.txt,
+# the signing key or the pinned EEPROM version is edited (reflash), no commit
+# required.
+export SOURCE_DATE_EPOCH=$(stat -c %Y $SRCDIR/bootconf.txt $SRCDIR/mkosi.conf $SRCDIR/mkosi.key | sort -n | tail -1)
+
 # Only the config is RSA-signed; pieeprom.sig is a corruption guard, not a signature.
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $SRCDIR/bootconf.txt -o $TMPDIR/bootconf.sig
 # --pubkey would accept mkosi.key itself; keep the private key out of the tool.
