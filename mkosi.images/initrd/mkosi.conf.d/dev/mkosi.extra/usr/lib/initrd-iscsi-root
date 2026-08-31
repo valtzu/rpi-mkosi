@@ -1,0 +1,67 @@
+#!/bin/sh
+# Bring up the iSCSI root for the dev netboot loop.
+#
+# RPi4 EDK2 boots Linux via DeviceTree, so it never publishes an iBFT and
+# /sys/firmware/ibft is absent. Fall back to explicit parameters passed on the
+# kernel command line:
+#
+#   iscsi_portal=<ip>  iscsi_target=<iqn>  iscsi_initiator=<iqn>
+#
+# The NIC is brought up by the kernel `ip=` parameter (ip=dhcp).
+set -eu
+
+if [ -e /sys/firmware/ibft/target0 ]; then
+    exec iscsistart -b
+fi
+
+portal= target= initiator=
+for arg in $(cat /proc/cmdline); do
+    case $arg in
+        iscsi_portal=*)    portal=${arg#*=} ;;
+        iscsi_target=*)    target=${arg#*=} ;;
+        iscsi_initiator=*) initiator=${arg#*=} ;;
+    esac
+done
+
+[ -n "$portal" ] && [ -n "$target" ] && [ -n "$initiator" ] || {
+    echo "initrd-iscsi-root: no iBFT and no iscsi_portal/target/initiator on cmdline" >&2
+    exit 1
+}
+
+mkdir -p /etc/iscsi
+echo "InitiatorName=$initiator" > /etc/iscsi/initiatorname.iscsi
+# The dev portal is often reached over wifi; a stall otherwise trips the 5s
+# NOP-out timeout (conn error 1022) and turns in-flight reads into I/O errors
+# that break userspace. Disarm NOP polling and let a drop block I/O for a day
+# instead of failing it. Written to iscsid.conf *and* passed as --param since
+# iscsistart doesn't consistently honour one or the other.
+cat > /etc/iscsi/iscsid.conf <<EOF
+node.startup = manual
+node.session.timeo.replacement_timeout = 86400
+node.conn[0].timeo.noop_out_interval = 86400
+node.conn[0].timeo.noop_out_timeout = 86400
+EOF
+modprobe iscsi_tcp 2>/dev/null || true
+
+# Wait for the kernel ip= config to give us a route to the portal.
+i=0
+while [ $i -lt 60 ]; do
+    ip route get "$portal" >/dev/null 2>&1 && break
+    i=$((i + 1)); sleep 1
+done
+
+# iscsistart itself retries the portal; loop a few times in case the link is
+# still settling.
+i=0
+while [ $i -lt 30 ]; do
+    if iscsistart -i "$initiator" -t "$target" -g 1 -a "$portal" \
+        --param 'node.session.timeo.replacement_timeout=86400' \
+        --param 'node.conn[0].timeo.noop_out_interval=86400' \
+        --param 'node.conn[0].timeo.noop_out_timeout=86400'; then
+        exit 0
+    fi
+    i=$((i + 1)); sleep 2
+done
+
+echo "initrd-iscsi-root: iscsistart failed for $target via $portal" >&2
+exit 1

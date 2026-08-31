@@ -1,0 +1,26 @@
+#!/bin/bash
+# Proxy-DHCP + TFTP for the dev netboot loop - chainloads iPXE on the Pi, which
+# then sanboots the iSCSI LUN from serve-iscsi. Needs privileged ports:
+#
+#   DEV_HOST=192.168.1.8 sudo mkosi box -- tools/iscsi/serve-netboot
+#
+# DEV_HOST (or $1) is this machine's LAN IP. SUBNET defaults to a /24 around it;
+# override if that's wrong. Fills in tools/iscsi/dnsmasq.conf and runs dnsmasq.
+set -eu
+
+HOST_IP=${DEV_HOST:-${1:-}}
+[ -n "$HOST_IP" ] || {
+	echo "set DEV_HOST (or pass \$1) to this host's LAN IP" >&2
+	exit 1
+}
+SUBNET=${SUBNET:-${HOST_IP%.*}.0}
+OUTPUT=$(realpath -m "${MKOSI_OUTPUT:-mkosi.output}")
+
+conf=$(mktemp)
+trap 'rm -f "$conf"' EXIT
+sed -e "s|192\.168\.1\.0,proxy|${SUBNET},proxy|" \
+    -e "s|http://192\.168\.1\.8:8081|http://${HOST_IP}:8081|" \
+    -e "s|^tftp-root=.*|tftp-root=${OUTPUT}|" \
+    "$(dirname "$0")/dnsmasq.conf" > "$conf"
+
+exec dnsmasq -d --conf-file="$conf"

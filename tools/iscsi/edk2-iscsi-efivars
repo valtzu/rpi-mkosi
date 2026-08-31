@@ -4,23 +4,57 @@ as a virt-fw-vars --set-json payload.
 
 EDK2's iSCSI stack only takes its target config from NVRAM (or DHCP); iBFT and
 the boot device path are outputs, not inputs. The RPi UEFI runs from a signed
-ramdisk so menu changes never persist - hence baking the "Attempt 1" blob here.
+ramdisk so menu changes never persist - hence baking the attempt here.
 
 Layout mirrors NetworkPkg/IScsiDxe (ISCSI_ATTEMPT_CONFIG_NVDATA /
-ISCSI_SESSION_CONFIG_NVDATA, both #pragma pack(1)). At boot IScsiGetConfigData
-loads "Attempt 1" only if AttemptOrder lists it, Actived == 1, and MacString
-matches the NIC exactly - so the Pi's MAC has to be correct.
+ISCSI_SESSION_CONFIG_NVDATA, both #pragma pack(1)). Notes:
+
+- IScsiCreateAttempts() runs at every boot and, if InitialAttemptOrder isn't
+  already PcdMaxIScsiAttemptNumber entries long, *overwrites* Attempt N with a
+  blank one. So we ship the full set: a configured "Attempt 1" plus blank
+  "Attempt 2".."Attempt 8", and InitialAttemptOrder = 01..08.
+- At boot IScsiGetConfigData loads an attempt only if AttemptOrder lists it,
+  Actived == 1, and its MacString matches the NIC exactly.
 """
 import argparse
 import json
 import struct
 
-# NetworkPkg/Include/Guid/IScsiConfigHii.h + MdePkg (little-endian mixed-endian GUID)
+# NetworkPkg/Include/Guid/IScsiConfigHii.h + MdePkg (mixed-endian GUID text form)
 GUID_ATTEMPT = "59324945-ec44-4c0d-b1cd-9db139df070c"   # gEfiIScsiInitiatorNameProtocolGuid
 GUID_CONFIG = "4b47d616-a8d6-4552-9d44-ccad2e0f4cf9"    # gIScsiConfigGuid
 GUID_BDP = "5b6f7107-bb3c-4660-92cd-542690280bbd"       # BootDiscoveryPolicyMgr
+GUID_GLOBAL = "8be4df61-93ca-11d2-aa0d-00e098032b8c"   # EFI_GLOBAL_VARIABLE
+ATTR_NV_BS_RT = 0x7
 ATTR_NV_BS = 0x3
 
+LOAD_OPTION_ACTIVE = 0x00000001
+MEDIA_DEVICE_PATH = 0x04
+MEDIA_FILEPATH_DP = 0x04
+END_DEVICE_PATH_TYPE = 0x7F
+END_ENTIRE_DEVICE_PATH_SUBTYPE = 0xFF
+
+
+def media_filepath_node(path: str) -> bytes:
+    name = path.encode("utf-16-le") + b"\0\0"
+    return struct.pack("<BBH", MEDIA_DEVICE_PATH, MEDIA_FILEPATH_DP,
+                       4 + len(name)) + name
+
+
+def dp_end() -> bytes:
+    return struct.pack("<BBH", END_DEVICE_PATH_TYPE,
+                       END_ENTIRE_DEVICE_PATH_SUBTYPE, 4)
+
+
+def load_option(desc: str, file_path: str) -> bytes:
+    # EFI_LOAD_OPTION with a short-form (media-file-path-only) device path -
+    # BDS expands it against every SimpleFileSystem, so it matches the ESP on
+    # the iSCSI LUN once IScsiDxe attaches it, without any PXE/HTTP fallback.
+    fp = media_filepath_node(file_path) + dp_end()
+    return (struct.pack("<IH", LOAD_OPTION_ACTIVE, len(fp))
+            + desc.encode("utf-16-le") + b"\0\0" + fp)
+
+MAX_ATTEMPTS = 8   # PcdMaxIScsiAttemptNumber default (RPi4 doesn't override)
 ISCSI_NAME_MAX_SIZE = 224
 ATTEMPT_NAME_SIZE = 12
 ISCSI_MAX_MAC_STRING_LEN = 96
@@ -28,11 +62,18 @@ ISCSI_TARGET_URI_MAX_SIZE = 255
 CHAP_NAME_STORAGE = 127
 CHAP_SECRET_STORAGE = 17
 ISCSI_WELL_KNOWN_PORT = 3260
+# EDK2's IScsiDxe treats this as milliseconds. The default 1000ms is too tight
+# on the RPi netboot handoff - the link only finishes autoneg a few seconds in,
+# so the first ARP/SYN to the target can miss a 1s window.
+CONNECT_DEFAULT_TIMEOUT = 20000
 
 IP_MODE_IP4 = 0
+ISCSI_DISABLED = 0
 ISCSI_ENABLED = 1
+ISCSI_ACTIVE_DISABLED = 0
 ISCSI_ACTIVE_ENABLED = 1
 ISCSI_AUTH_TYPE_NONE = 0
+ISCSI_AUTH_TYPE_CHAP = 1
 
 
 def cstr(s: str, size: int) -> bytes:
@@ -54,24 +95,30 @@ def boot_lun(lun: int) -> bytes:
     return struct.pack(">H", lun) + b"\0" * 6
 
 
-def session_config(target_ip: str, target_iqn: str, mac: bytes, lun: int) -> bytes:
-    ip4 = bytes(int(o) for o in target_ip.split(".")) + b"\0" * 12
-    isid = bytes([mac[0] & 0x3F]) + mac[1:6]
+def ip4_16(addr: str) -> bytes:
+    return (bytes(int(o) for o in addr.split(".")) if addr else b"\0" * 4).ljust(16, b"\0")
+
+
+def session_config(*, enabled, target_ip="", target_iqn="", isid=b"\0" * 6, lun=0,
+                   local_ip="", netmask="", gateway="", from_dhcp=False):
+    ip4 = ip4_16(target_ip) if target_ip else b"\0" * 16
+    init_from_dhcp = 1 if (enabled and (from_dhcp or not local_ip)) else 0
+    targ_from_dhcp = 1 if (enabled and from_dhcp) else 0
     return b"".join([
         struct.pack("<H", ISCSI_WELL_KNOWN_PORT),   # TargetPort
-        bytes([ISCSI_ENABLED]),                     # Enabled
+        bytes([enabled]),                           # Enabled
         bytes([IP_MODE_IP4]),                       # IpMode
-        b"\0" * 16,                                 # LocalIp
-        b"\0" * 4,                                  # SubnetMask
-        b"\0" * 16,                                 # Gateway
-        bytes([1]),                                 # InitiatorInfoFromDhcp
-        bytes([0]),                                 # TargetInfoFromDhcp
+        ip4_16(local_ip),                           # LocalIp
+        ip4_16(netmask)[:4],                        # SubnetMask
+        ip4_16(gateway),                            # Gateway
+        bytes([init_from_dhcp]),                    # InitiatorInfoFromDhcp
+        bytes([targ_from_dhcp]),                    # TargetInfoFromDhcp
         cstr(target_iqn, ISCSI_NAME_MAX_SIZE),      # TargetName
         ip4,                                        # TargetIp
         bytes([0]),                                 # PrefixLength
         boot_lun(lun),                              # BootLun
-        struct.pack("<H", 1000),                    # ConnectTimeout
-        bytes([0]),                                 # ConnectRetryCount
+        struct.pack("<H", CONNECT_DEFAULT_TIMEOUT), # ConnectTimeout
+        bytes([3]),                                 # ConnectRetryCount
         isid,                                       # IsId[6]
         bytes([0]),                                 # RedirectFlag
         struct.pack("<H", 0),                       # OriginalTargetPort
@@ -81,67 +128,113 @@ def session_config(target_ip: str, target_iqn: str, mac: bytes, lun: int) -> byt
     ])
 
 
-def attempt_config(mac_str: str, session: bytes) -> bytes:
+def attempt_config(index: int, *, mac_str="", session=None):
+    if session is None:
+        session = session_config(enabled=ISCSI_DISABLED)
+    active = ISCSI_ACTIVE_ENABLED if mac_str else ISCSI_ACTIVE_DISABLED
     chap = bytes([0]) + b"\0" * (CHAP_NAME_STORAGE + CHAP_SECRET_STORAGE
                                  + CHAP_NAME_STORAGE + CHAP_SECRET_STORAGE)
     return b"".join([
         b"\0" * 16,                                 # LIST_ENTRY Link (fixed up on load)
         bytes([0]),                                 # NicIndex
-        bytes([1]),                                 # AttemptConfigIndex
+        bytes([index]),                             # AttemptConfigIndex
         bytes([0]),                                 # DhcpSuccess
         bytes([0]),                                 # ValidiBFTPath
         bytes([0]),                                 # ValidPath
         bytes([0]),                                 # AutoConfigureMode
         struct.pack("<H", 0),                       # AttemptTitleToken
         struct.pack("<H", 0),                       # AttemptTitleHelpToken
-        cstr("Attempt 1", ATTEMPT_NAME_SIZE),       # AttemptName
+        cstr(f"Attempt {index}", ATTEMPT_NAME_SIZE),  # AttemptName
         cstr(mac_str, ISCSI_MAX_MAC_STRING_LEN),    # MacString
         b"\0" * 16, b"\0" * 16, b"\0" * 16,         # PrimaryDns, SecondaryDns, DhcpServer
         session,                                    # SessionConfigData
-        bytes([ISCSI_AUTH_TYPE_NONE]),              # AuthenticationType
+        bytes([ISCSI_AUTH_TYPE_NONE]),              # AuthenticationType - tgt runs open (initiator-address=ALL, no CHAP)
         chap,                                       # AuthConfigData.CHAP
         bytes([0]),                                 # AutoConfigureSuccess
-        bytes([ISCSI_ACTIVE_ENABLED]),             # Actived
+        bytes([active]),                            # Actived
     ])
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mac", required=True, help="Pi NIC MAC, e.g. dc:a6:32:12:34:56")
-    ap.add_argument("--target-ip", required=True)
-    ap.add_argument("--target-iqn", required=True)
+    ap.add_argument("--mac", required=True, action="append",
+                    help="Pi NIC MAC, e.g. dc:a6:32:12:34:56 (repeat for one "
+                         "attempt per MAC - EDK2 uses whichever matches the NIC)")
+    ap.add_argument("--target-ip", default="")
+    ap.add_argument("--target-iqn", default="")
     ap.add_argument("--initiator-iqn", required=True)
+    ap.add_argument("--from-dhcp", action="store_true",
+                    help="take initiator + target from DHCP (needs option 17 root-path)")
     ap.add_argument("--lun", type=int, default=1)
+    ap.add_argument("--initiator-ip", default="",
+                    help="static initiator IPv4; omit to use EDK2's DHCP "
+                         "(which stalls if the link is slow to come up)")
+    ap.add_argument("--initiator-mask", default="255.255.255.0")
+    ap.add_argument("--initiator-gw", default="0.0.0.0")
+    ap.add_argument("--boot-file", default=r"\EFI\BOOT\BOOTAA64.EFI",
+                    help="pin BootOrder to a single short-form load option for "
+                         "this file (found on the iSCSI LUN's ESP once attached) "
+                         "so BDS never falls back to PXE/HTTP network boot; "
+                         "empty string to leave BootOrder alone")
+    ap.add_argument("--boot-timeout", type=int, default=5,
+                    help="firmware boot-menu timeout in seconds (0 = none)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
-    mac_bytes = bytes(int(p, 16) for p in args.mac.replace("-", ":").split(":"))
-    session = session_config(args.target_ip, args.target_iqn, mac_bytes, args.lun)
-    attempt = attempt_config(mac_string(args.mac), session)
+    if not args.from_dhcp and not args.target_ip:
+        ap.error("--target-ip required unless --from-dhcp")
+    if len(args.mac) > MAX_ATTEMPTS:
+        ap.error(f"at most {MAX_ATTEMPTS} --mac values")
 
-    payload = {
-        "version": 2,
-        "variables": [
-            {"name": "Attempt 1", "guid": GUID_ATTEMPT, "attr": ATTR_NV_BS,
-             "data": attempt.hex()},
-            {"name": "AttemptOrder", "guid": GUID_CONFIG, "attr": ATTR_NV_BS,
-             "data": "01"},
-            {"name": "InitialAttemptOrder", "guid": GUID_CONFIG, "attr": ATTR_NV_BS,
-             "data": "01"},
-            {"name": "I_NAME", "guid": GUID_ATTEMPT, "attr": ATTR_NV_BS,
-             "data": (args.initiator_iqn.encode() + b"\0").hex()},
-            # PFTF's default "minimal" boot discovery never connects the network
-            # stack, so the iSCSI attempt above is never tried. BDP_CONNECT_ALL
-            # makes BDS connect everything (incl. the iSCSI driver) and refresh
-            # the boot options, exposing the target's ESP.
-            {"name": "BootDiscoveryPolicy", "guid": GUID_BDP, "attr": ATTR_NV_BS,
-             "data": "02000000"},
-        ],
-    }
+    # EDK2 needs a full set: InitialAttemptOrder = 1..MAX and Attempt 1..MAX all
+    # present, or IScsiCreateAttempts blanks them / IScsiCreateKeywords chokes and
+    # the whole iSCSI HII page disappears. Configure the first len(--mac); blank
+    # the rest.
+    variables = []
+    for i in range(1, MAX_ATTEMPTS + 1):
+        if i <= len(args.mac):
+            m = args.mac[i - 1]
+            mac = bytes(int(p, 16) for p in m.replace("-", ":").split(":"))
+            session = session_config(
+                enabled=ISCSI_ENABLED, target_ip=args.target_ip, target_iqn=args.target_iqn,
+                isid=bytes([mac[0] & 0x3F]) + mac[1:6], lun=args.lun,
+                local_ip=args.initiator_ip, netmask=args.initiator_mask,
+                gateway=args.initiator_gw, from_dhcp=args.from_dhcp)
+            blob = attempt_config(i, mac_str=mac_string(m), session=session)
+        else:
+            blob = attempt_config(i)
+        variables.append({"name": f"Attempt {i}", "guid": GUID_ATTEMPT,
+                          "attr": ATTR_NV_BS, "data": blob.hex()})
+
+    variables += [
+        {"name": "AttemptOrder", "guid": GUID_CONFIG, "attr": ATTR_NV_BS,
+         "data": bytes(range(1, len(args.mac) + 1)).hex()},
+        {"name": "InitialAttemptOrder", "guid": GUID_CONFIG, "attr": ATTR_NV_BS,
+         "data": bytes(range(1, MAX_ATTEMPTS + 1)).hex()},
+        {"name": "I_NAME", "guid": GUID_ATTEMPT, "attr": ATTR_NV_BS,
+         "data": (args.initiator_iqn.encode() + b"\0").hex()},
+        # PFTF's default "minimal" boot discovery never connects the network
+        # stack, so the attempt is never tried. BDP_CONNECT_ALL makes BDS connect
+        # everything (incl. the iSCSI driver) and refresh the boot options.
+        {"name": "BootDiscoveryPolicy", "guid": GUID_BDP, "attr": ATTR_NV_BS,
+         "data": "02000000"},
+    ]
+
+    if args.boot_file:
+        variables += [
+            {"name": "Boot0000", "guid": GUID_GLOBAL, "attr": ATTR_NV_BS_RT,
+             "data": load_option("iSCSI", args.boot_file).hex()},
+            {"name": "BootOrder", "guid": GUID_GLOBAL, "attr": ATTR_NV_BS_RT,
+             "data": struct.pack("<H", 0).hex()},
+            {"name": "Timeout", "guid": GUID_GLOBAL, "attr": ATTR_NV_BS_RT,
+             "data": struct.pack("<H", args.boot_timeout).hex()},
+        ]
+
     with open(args.out, "w") as f:
-        json.dump(payload, f, indent=2)
-    print(f"{args.out}: Attempt 1 = {len(attempt)} bytes, target "
-          f"{args.target_iqn} @ {args.target_ip}:3260 lun {args.lun}")
+        json.dump({"version": 2, "variables": variables}, f, indent=2)
+    tgt = f"{args.target_iqn} @ {args.target_ip}" if args.target_ip else "via DHCP"
+    print(f"{args.out}: {len(args.mac)} attempt(s) for MAC(s) "
+          f"{', '.join(args.mac)} -> target {tgt} lun {args.lun}")
 
 
 if __name__ == "__main__":

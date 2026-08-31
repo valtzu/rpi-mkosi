@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Serve mkosi.output/ over HTTP for the Pi's bootloader HTTP-boot.
+
+The RPi bootloader fetches boot.img/boot.sig and then jumps straight to EDK2
+without tearing the connection down; a normal close leaves the host TCP stack
+retransmitting the unacked tail for minutes, and on this board those
+retransmits flood EDK2's GENET RX ring and drown the iSCSI ARP exchange.
+
+Each connection is closed with a bounded SO_LINGER (1s): the full response is
+already in the kernel send buffer by the time close() runs, so 1s is plenty to
+flush it on the LAN, and the socket is then reset instead of lingering for
+minutes. SO_LINGER=0 (immediate reset) truncates the download and sends the
+bootloader into a fast retry loop, so don't use it.
+"""
+
+import os
+import socket
+import struct
+import sys
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8081
+ROOT = sys.argv[2] if len(sys.argv) > 2 else "mkosi.output"
+
+_LINGER1 = struct.pack("ii", 1, 1)
+
+
+class Handler(SimpleHTTPRequestHandler):
+    protocol_version = "HTTP/1.0"
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, directory=ROOT, **kw)
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write("serve-boot: %s - %s\n" % (self.address_string(), fmt % args))
+
+    def copyfile(self, source, outputfile):
+        try:
+            super().copyfile(source, outputfile)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass
+
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            self.close_connection = True
+
+
+class Server(ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+    def finish_request(self, request, client_address):
+        request.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, _LINGER1)
+        super().finish_request(request, client_address)
+
+
+if __name__ == "__main__":
+    os.chdir(os.path.dirname(os.path.abspath(ROOT)) if os.path.isabs(ROOT) else ".")
+    srv = Server(("0.0.0.0", PORT), Handler)
+    sys.stderr.write("serve-boot: http://0.0.0.0:%d/ -> %s (SO_LINGER=0)\n" % (PORT, ROOT))
+    srv.serve_forever()

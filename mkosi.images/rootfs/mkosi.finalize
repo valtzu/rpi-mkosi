@@ -6,7 +6,22 @@ trap "rm -rf -- $TMPDIR" EXIT
 cp -af $CACHEDIR/firmware $TMPDIR/firmware
 cd $TMPDIR/firmware
 
-unzip -o $CACHEDIR/rpi_uefi.zip RPI_EFI.fd
+# EDK2 firmware: the upstream PFTF zip by default. If $SRCDIR/RPI_EFI.dev.fd
+# exists (untracked; a locally built RPi4 RELEASE - same flags as pftf/RPi4 plus
+# edk2-platforms PR#1042 for the zero-MAC bug), the dev profile uses that.
+if printf '%s' "$PROFILES" | grep -qw dev && [ -f $SRCDIR/RPI_EFI.dev.fd ]; then
+    cp $SRCDIR/RPI_EFI.dev.fd ./RPI_EFI.fd
+else
+    unzip -o $CACHEDIR/rpi_uefi.zip RPI_EFI.fd
+fi
+
+# dev: iPXE's arm64 secure-boot builds (boot.ipxe.org/arm64-efi-sb, fetched by
+# mkosi.sync into cache/ipxe/) are signed with iPXE's own test-signing key, so
+# enroll that cert into db as well - EDK2 loads snponly.efi under Secure Boot.
+EXTRA_DB_ARGS=()
+if printf '%s' "$PROFILES" | grep -qw dev; then
+    EXTRA_DB_ARGS+=(--add-db c43a257d-1c7c-4635-9800-d7049ce69e31 $CACHEDIR/ipxe/testsign.crt)
+fi
 
 virt-fw-vars \
   -i ./RPI_EFI.fd \
@@ -15,31 +30,45 @@ virt-fw-vars \
   --no-microsoft \
   --secure-boot \
   --enroll-cert $SRCDIR/mkosi.crt \
-  --add-db a0baa8a3-041d-48a8-bc87-c36d121b5e3d $SRCDIR/mkosi.crt
+  --add-db a0baa8a3-041d-48a8-bc87-c36d121b5e3d $SRCDIR/mkosi.crt \
+  "${EXTRA_DB_ARGS[@]}"
 
-# dev profile: bake a static iSCSI boot attempt into the UEFI varstore so EDK2
-# attaches the locally served image (see tools/iscsi/). The portal defaults to
-# this machine's primary IP; only the Pi's MAC (which EDK2 matches against the
-# NIC) has to be supplied, via [Build] Environment= in an untracked
-# mkosi.local.conf.
 BOOTCONF=$SRCDIR/bootconf.txt
+CONFIGTXT=$SRCDIR/config.txt
+EEPROM_TS_ARG=
 
 if printf '%s' "$PROFILES" | grep -qw dev; then
     : "${DEV_HOST:=$(hostname -I | awk '{print $1}')}"
-    : "${PI_MAC:?set PI_MAC via [Build] Environment= in mkosi.local.conf}"
-    python3 "$SRCDIR/tools/iscsi/edk2-iscsi-efivars" \
-      --mac "$PI_MAC" \
-      --target-ip "$DEV_HOST" \
-      --target-iqn iqn.2026-08.lan.local:rpi-dev \
-      --initiator-iqn iqn.2026-08.lan.local:rpi-dev-client \
-      --out $TMPDIR/iscsi-efivars.json
-    virt-fw-vars -i ./RPI_EFI.fd -o ./RPI_EFI.fd --set-json $TMPDIR/iscsi-efivars.json
+
+    # dev boot method: EDK2 does PXE, and tools/iscsi/serve-netboot (proxy-DHCP +
+    # TFTP dnsmasq on the dev host) chainloads iPXE's arm64 snponly.efi, which
+    # then re-DHCPs for script.ipxe and sanboots the iSCSI LUN. On an HTTP boot,
+    # EDK2 (armstub-loaded) has no filesystem, so it's the only way in. The same
+    # snponly.efi + autoexec.ipxe are also baked into boot.img below - that path
+    # only works from a burn-boot USB stick, where EDK2 sees the FAT.
+    IPXE_EFI=$CACHEDIR/ipxe/snponly.efi
+
+    cat > $TMPDIR/autoexec.ipxe <<EOF
+#!ipxe
+dhcp
+set initiator-iqn iqn.2026-08.lan.local:rpi-dev-client
+sanboot iscsi:${DEV_HOST}:::1:iqn.2026-08.lan.local:rpi-dev
+EOF
+    cp "$IPXE_EFI" $OUTPUTDIR/snponly.efi
+    cp $TMPDIR/autoexec.ipxe $OUTPUTDIR/script.ipxe
 
     # HTTP-boot boot.img from `mkosi serve` (:8081); try HTTP, then USB, then SD.
     # HTTP_PATH is emptied - it otherwise defaults to "net_install".
     BOOTCONF=$TMPDIR/bootconf.txt
     sed 's/^BOOT_ORDER=.*/BOOT_ORDER=0xf147/' $SRCDIR/bootconf.txt > $BOOTCONF
-    printf 'HTTP_HOST=%s\nHTTP_PORT=8081\nHTTP_PATH=\n' "$DEV_HOST" >> $BOOTCONF
+    printf 'HTTP_HOST=%s\nHTTP_PORT=8081\nHTTP_PATH=\nSHA256=1\n' "$DEV_HOST" >> $BOOTCONF
+
+    # The SoC watchdog (config.txt dtparam=watchdog=on) fires ~15s after the
+    # armstub with nothing to service it until Linux; the iPXE + first-boot
+    # repart handoff overruns that and gets reset mid-boot. Drop it for dev.
+    CONFIGTXT=$TMPDIR/config.txt
+    grep -v '^dtparam=watchdog=on' $SRCDIR/config.txt > $CONFIGTXT
+
 fi
 
 # Only the config is RSA-signed; pieeprom.sig is a corruption guard, not a signature.
@@ -50,16 +79,28 @@ python3 $CACHEDIR/eeprom/rpi-eeprom-config \
   --config $BOOTCONF \
   --digest $TMPDIR/bootconf.sig \
   --pubkey $TMPDIR/mkosi.pub \
+  $EEPROM_TS_ARG \
   --out $TMPDIR/pieeprom.upd \
   $CACHEDIR/eeprom/pieeprom.bin
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -i $TMPDIR/pieeprom.upd -o $TMPDIR/pieeprom.sig
 
 # Emitted into $OUTPUTDIR (-> mkosi.output/) as well so it can be served over
 # TFTP/HTTP for netboot, not just baked into the ESP.
-truncate -s 8M $OUTPUTDIR/boot.img
+BOOT_IMG_SIZE=8M
+printf '%s' "$PROFILES" | grep -qw dev && BOOT_IMG_SIZE=12M  # room for iPXE
+truncate -s $BOOT_IMG_SIZE $OUTPUTDIR/boot.img
 mformat -i $OUTPUTDIR/boot.img -L 16 ::
-mcopy -i $OUTPUTDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/config.txt ::
+mcopy -i $OUTPUTDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $CONFIGTXT ::
 mcopy -i $OUTPUTDIR/boot.img $TMPDIR/pieeprom.upd $TMPDIR/pieeprom.sig ::
+
+# dev: EDK2 boots \EFI\BOOT\BOOTAA64.EFI (iPXE) from this FAT; iPXE then loads
+# autoexec.ipxe from the same volume (\EFI\BOOT\ or the root - ship both).
+if printf '%s' "$PROFILES" | grep -qw dev; then
+    mmd   -i $OUTPUTDIR/boot.img ::EFI ::EFI/BOOT
+    mcopy -i $OUTPUTDIR/boot.img "$IPXE_EFI"          ::EFI/BOOT/BOOTAA64.EFI
+    mcopy -i $OUTPUTDIR/boot.img $TMPDIR/autoexec.ipxe ::EFI/BOOT/autoexec.ipxe
+    mcopy -i $OUTPUTDIR/boot.img $TMPDIR/autoexec.ipxe ::autoexec.ipxe
+fi
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $OUTPUTDIR/boot.img -o $OUTPUTDIR/boot.sig
 
 install -m 0755 $CACHEDIR/k3s $BUILDROOT/usr/bin/k3s

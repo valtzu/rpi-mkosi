@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Best-effort serial capture that survives a flaky USB-TTL adapter.
+
+Reopens /dev/ttyUSB0 whenever it reappears, appends raw bytes to the log file
+given as argv[1]. Prints a marker line on each (re)open.
+"""
+import os
+import sys
+import time
+import termios
+
+DEV = "/dev/ttyUSB0"
+LOG = sys.argv[1] if len(sys.argv) > 1 else "serial.log"
+
+
+def configure(fd):
+    a = termios.tcgetattr(fd)
+    a[0] = termios.IGNBRK
+    a[1] = 0
+    a[2] = (a[2] | termios.CLOCAL | termios.CREAD | termios.CS8) & ~(
+        termios.CRTSCTS | termios.PARENB | termios.CSTOPB
+    )
+    a[3] = 0
+    # 115200
+    a[4] = a[5] = termios.B115200
+    termios.tcsetattr(fd, termios.TCSANOW, a)
+
+
+with open(LOG, "ab", buffering=0) as log:
+    while True:
+        try:
+            fd = os.open(DEV, os.O_RDONLY | os.O_NONBLOCK | os.O_NOCTTY)
+        except OSError:
+            time.sleep(0.5)
+            continue
+        try:
+            configure(fd)
+            log.write(b"\n--- serial-capture: opened %s @ %s ---\n"
+                      % (DEV.encode(), time.strftime("%H:%M:%S").encode()))
+            while True:
+                try:
+                    data = os.read(fd, 4096)
+                except BlockingIOError:
+                    time.sleep(0.02)
+                    continue
+                except OSError:
+                    break
+                if not data:
+                    time.sleep(0.02)
+                    continue
+                log.write(data)
+        finally:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        time.sleep(0.3)

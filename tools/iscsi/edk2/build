@@ -1,0 +1,40 @@
+#!/bin/bash
+# Build RPI_EFI.fd for the dev profile: a plain RPi4 UEFI RELEASE build with the
+# same flags as pftf/RPi4, plus edk2-platforms PR#1042 (fixes EDK2 reading an
+# all-zero MAC on RPi4 - the reason PXE/DHCP was unreliable).
+#
+#   tools/iscsi/edk2/build          # -> ./RPI_EFI.dev.fd (picked up by mkosi.finalize)
+#
+# Needs: gcc-aarch64-linux-gnu, acpica-tools (iasl), uuid-dev, python3, git.
+set -eux
+
+BT=${BT:-$HOME/src/edk2-rpi4}
+PLATFORMS_REF=${PLATFORMS_REF:-pull/1042/head}
+OUT=$(cd "$(dirname "$0")/../../.." && pwd)/RPI_EFI.dev.fd
+
+mkdir -p "$BT" && cd "$BT"
+[ -d edk2 ]          || git clone --depth 1 https://github.com/tianocore/edk2.git
+[ -d edk2-non-osi ]  || git clone --depth 1 https://github.com/tianocore/edk2-non-osi.git
+if [ ! -d edk2-platforms ]; then
+  git clone --depth 1 https://github.com/tianocore/edk2-platforms.git
+  git -C edk2-platforms fetch --depth 1 origin "$PLATFORMS_REF:build"
+  git -C edk2-platforms checkout build
+fi
+# edk2 needs its (first-level) submodules present or the .dsc parse fails
+git -C edk2 config -f .gitmodules --get-regexp '\.path$' | awk '{print $2}' \
+  | xargs -rn1 git -C edk2 submodule update --init --depth 1
+
+export WORKSPACE=$PWD
+export PACKAGES_PATH=$PWD/edk2:$PWD/edk2-platforms:$PWD/edk2-non-osi
+export GCC_AARCH64_PREFIX=aarch64-linux-gnu-
+export PYTHON_COMMAND=python3
+make -C edk2/BaseTools -j"$(nproc)" >/dev/null
+source edk2/edksetup.sh
+build -a AARCH64 -t GCC -b RELEASE -n "$(nproc)" \
+  -p edk2-platforms/Platform/RaspberryPi/RPi4/RPi4.dsc \
+  --pcd gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVendor=L"https://github.com/pftf/RPi4" \
+  --pcd gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString=L"UEFI Firmware v1.42 (edk2-platforms PR1042)" \
+  -D SECURE_BOOT_ENABLE=TRUE -D INCLUDE_TFTP_COMMAND=TRUE \
+  -D NETWORK_ISCSI_ENABLE=TRUE -D SMC_PCI_SUPPORT=1
+
+cp -v Build/RPi4/RELEASE_GCC/FV/RPI_EFI.fd "$OUT"

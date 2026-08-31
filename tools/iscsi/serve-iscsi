@@ -16,6 +16,11 @@ IQN=${IQN:-iqn.2026-08.lan.local:rpi-dev}
 OUTPUT=${MKOSI_OUTPUT:-mkosi.output}
 LUN=$(realpath -m "$OUTPUT/iscsi-lun.img")
 POLL=${POLL:-5}
+# The built image is sized to its contents, leaving no room for the first-boot
+# systemd-repart to add the (encrypted) root partition - gpt-auto-root then
+# never appears and the Pi drops to the initrd emergency shell. Pad the LUN so
+# repart has free space; it relocates the backup GPT header to the new end.
+LUN_SIZE=${LUN_SIZE:-8G}
 
 # mkosi box mounts /run read-only; move tgt's control socket (and its lock)
 # somewhere writable. Manual tgtadm needs this same value in its environment.
@@ -25,9 +30,16 @@ export TGT_IPC_SOCKET=${TGT_IPC_SOCKET:-$(realpath -m "$OUTPUT/tgt.ipc")}
 # reuses the same output path - serve a private copy, not the artifact itself.
 # the full disk image, not the split usr/verity partition artifacts or our copy
 newest() { ls -t "$OUTPUT"/system*.raw 2>/dev/null | grep -vE '\.usr|iscsi-lun' | head -1; }
+# a rebuild reuses the same filename, so track identity by mtime+size, not path
+stamp() { stat -c '%n %Y %s' "$1" 2>/dev/null; }
 connected() { tgtadm --lld iscsi --op show --mode conn --tid 1 2>/dev/null | grep -q 'Connection:'; }
 set_lun() {
+	rm -f "$LUN.tmp"
 	cp --reflink=auto "$1" "$LUN.tmp"
+	truncate -s ">$LUN_SIZE" "$LUN.tmp"   # grow only, never shrink below the image
+	# The image's backup GPT header sits at the old (image) end; move it to the
+	# new end so the padding reads as free space and systemd-repart will use it.
+	sfdisk --relocate gpt-bak-std "$LUN.tmp" >/dev/null
 	mv "$LUN.tmp" "$LUN"
 	tgtadm --lld iscsi --op delete --mode logicalunit --tid 1 --lun 1 2>/dev/null || true
 	tgtadm --lld iscsi --op new    --mode logicalunit --tid 1 --lun 1 -b "$LUN"
@@ -50,20 +62,20 @@ done
 	tgtadm --lld iscsi --op new --mode target --tid 1 -T "$IQN"
 	set_lun "$src"
 	tgtadm --lld iscsi --op bind --mode target --tid 1 -I ALL
-	served=$src
-	echo "serving $served as $IQN on TCP/3260" >&2
+	served=$(stamp "$src")
+	echo "serving $src as $IQN on TCP/3260" >&2
 
 	while sleep "$POLL"; do
 		tgtadm --op show --mode target >/dev/null 2>&1 || exit 0
 		next=$(newest || true)
-		[ -n "$next" ] && [ "$next" != "$served" ] || continue
+		[ -n "$next" ] && [ "$(stamp "$next")" != "$served" ] || continue
 		if connected; then
 			echo "new build $next - waiting for the Pi to disconnect" >&2
 			continue
 		fi
 		set_lun "$next"
-		served=$next
-		echo "LUN now serving $served" >&2
+		served=$(stamp "$next")
+		echo "LUN now serving $next" >&2
 	done
 ) &
 

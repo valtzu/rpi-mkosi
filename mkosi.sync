@@ -16,3 +16,14 @@ curl -fLZ \
 ln -sf $latest_changelog $SRCDIR/cache/latest.changelog.xz
 ln -sf rpi_uefi_${UEFI_VERSION}.zip $SRCDIR/cache/rpi_uefi.zip
 ln -sf pieeprom-${EEPROM_VERSION}.bin $SRCDIR/cache/eeprom/pieeprom.bin
+
+# dev: EDK2 HTTP-boots iPXE's arm64 secure-boot snponly.efi (served locally by
+# `mkosi serve`), and its test-signing cert is enrolled into db. iPXE rotates
+# that key ~monthly - `rm cache/ipxe/testsign.crt` to force a refetch if HTTP
+# boot starts failing image verification.
+if printf '%s' "$PROFILES" | grep -qw dev; then
+  mkdir -p $SRCDIR/cache/ipxe
+  for f in snponly.efi testsign.crt; do
+    [ -e $SRCDIR/cache/ipxe/$f ] || curl -fL -o $SRCDIR/cache/ipxe/$f http://boot.ipxe.org/arm64-efi-sb/$f
+  done
+fi

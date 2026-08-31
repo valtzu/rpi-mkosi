@@ -13,3 +13,4 @@ mkosi.rootpw
 /mkosi.tools/
 /*.log
 /cache
+/RPI_EFI.dev.fd*
