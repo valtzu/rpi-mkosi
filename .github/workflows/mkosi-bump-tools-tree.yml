@@ -1,0 +1,28 @@
+name: 'Bump mkosi tools tree'
+
+on:
+  schedule:
+    # Monday 07:00 UTC
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: valtzu/gh-action-mkosi-bump@main
+        with:
+          bump-version: 'false'
+          bump-snapshot: 'false'
+          bump-tools-tree-snapshot: 'true'
+          install-mkosi: 'true'
+          mkosi-version: 'v27'
+          pull-request: 'true'   # tools-tree bumps get a review + build first
+          pull-request-branch: 'mkosi-bump-tools-tree'
+          commit-message: 'Bump mkosi tools tree to {{tools_tree_snapshot}}'
+          pull-request-title: 'Bump mkosi tools tree to {{tools_tree_snapshot}}'

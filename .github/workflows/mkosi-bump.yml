@@ -1,0 +1,30 @@
+name: 'Weekly package release'
+
+on:
+  schedule:
+    # Friday 19:00 UTC (~21:00 Europe/Helsinki). The release is published within
+    # the hour; devices pull it on their next systemd-sysupdate check (every
+    # 2-6h) and reboot into it at systemd-sysupdate-reboot.timer's 04:10 local,
+    # so the rollout lands over the weekend nights rather than a day later.
+    - cron: '0 19 * * 5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write   # for dispatch-workflow
+
+jobs:
+  bump:
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # tags, for the patch bump
+      - uses: valtzu/gh-action-mkosi-bump@main
+        with:
+          bump-version: 'patch'   # tag the next X.Y.(Z+1); mkosi.version is a git-describe script
+          bump-snapshot: 'true'
+          bump-tools-tree-snapshot: 'false'   # bumped separately, see mkosi-bump-tools-tree.yml
+          install-mkosi: 'true'
+          mkosi-version: 'v27'
+          dispatch-workflow: 'mkosi.yml'   # a GITHUB_TOKEN-pushed tag doesn't start the release run

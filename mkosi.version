@@ -1,0 +1,10 @@
+#!/bin/sh
+# Image version = `git describe`: exactly the tag on a release build, and
+# <tag>-<commits>-g<sha> otherwise. Uncommitted changes append a timestamp so
+# every local `mkosi build` is a distinct, monotonically newer version that a
+# running device will sysupdate to. SOURCE_DATE_EPOCH (set by CI and by the
+# reproducible-build recipe) is preferred so the version stays constant across
+# the build -> vm -> release steps of one run.
+v=$(git describe --tags --always --match '[0-9]*' 2>/dev/null || echo 0)
+[ -z "$(git status --porcelain 2>/dev/null)" ] || v="$v-${SOURCE_DATE_EPOCH:-$(date +%s)}"
+printf '%s\n' "$v"

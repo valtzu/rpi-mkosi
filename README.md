@@ -38,21 +38,56 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 
 ### Reproducible builds
 
-Package versions are pinned to a [snapshot.debian.org](https://snapshot.debian.org)
-timestamp (`Snapshot=` / `ToolsTreeSnapshot=` in [`mkosi.conf`](mkosi.conf)), and
-the build is byte-reproducible: two builds of the same commit produce identical
-`system_.raw`, `system_.efi`, `rootfs_.tar`, `initrd_`, `boot.img` and the
-`usr`/verity/verity-sig partitions. CI pins `SOURCE_DATE_EPOCH` to the commit
-timestamp and writes a static `mkosi.seed` (the repart seed); to reproduce
-locally:
+Package versions are pinned to [snapshot.debian.org](https://snapshot.debian.org)
+timestamps in [`mkosi.conf`](mkosi.conf) (`Snapshot=` for the image,
+`ToolsTreeSnapshot=` for the build tools tree), and the build is
+byte-reproducible: two builds of the same commit produce an identical disk image
+(`system_<ver>.raw`), UKI (`system_<ver>.efi`), rootfs tarball, initrd,
+`boot.img` and `usr` / verity / verity-sig partitions. CI pins
+`SOURCE_DATE_EPOCH` to the commit timestamp and writes a static `mkosi.seed`
+(the repart seed); to reproduce locally:
 
 ```bash
 echo -n 8c58b3b9-7383-50e6-aed7-8d8341fdaf5f > mkosi.seed
 SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) mkosi -f build
 ```
 
-Bumping packages is a one-line change: point both snapshot settings at a newer
-timestamp (latest under `https://snapshot.debian.org/archive/debian/?year=YYYY&month=M`).
+### Versioning
+
+[`mkosi.version`](mkosi.version) is a script: `git describe` on a release build
+(so exactly the tag), `<tag>-<n>-g<sha>` in between, plus `-<unix-time>` when the
+tree is dirty. `systemd-sysupdate`'s version compare ranks every one of those
+above the last release, so the local loop just works:
+
+```bash
+git switch -c my-change
+# edit mkosi.conf / add a package / ...
+mkosi build && mkosi serve   # a device pointed at this will sysupdate to it
+```
+
+(Commit the change for a stable version; the `-<unix-time>` suffix on a dirty
+tree still advances on every build.)
+
+### Package updates
+
+Both driven by [`valtzu/gh-action-mkosi-bump`](https://github.com/valtzu/gh-action-mkosi-bump),
+no PAT:
+
+* [`Weekly package release`](.github/workflows/mkosi-bump.yml) — **Friday 19:00
+  UTC**: moves `Snapshot=` to the newest `mkosi latest-snapshot` timestamp,
+  commits it straight to `main`, tags the next patch version, and
+  `workflow_dispatch`es [`mkosi.yml`](.github/workflows/mkosi.yml) on that tag.
+  The release job builds, uploads the assets to a draft, then flips it to
+  published + latest. Devices pick it up on their next `systemd-sysupdate` poll
+  and reboot into it at `systemd-sysupdate-reboot.timer` (04:10 local), so the
+  rollout lands over the weekend nights. No review gate - auto-rollback covers a
+  bad boot, but a broken package set still reaches every device until the next
+  release.
+* [`Bump mkosi tools tree`](.github/workflows/mkosi-bump-tools-tree.yml) — moves
+  `ToolsTreeSnapshot=` in a rolling `mkosi-bump-tools-tree` PR. A tools-tree bump
+  can break the build, so it goes through review; the PR is built by the
+  `pull_request` trigger in `mkosi.yml` (click *Approve workflows to run* on it,
+  since a `GITHUB_TOKEN`-opened PR's checks start pending).
 
 ## Setup dev env
 
