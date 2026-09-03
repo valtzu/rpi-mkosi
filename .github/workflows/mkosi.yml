@@ -5,6 +5,19 @@ on:
   push:
     branches: ['main']
     tags: ['*']
+  pull_request:
+    paths:
+      - 'mkosi.conf'
+      - 'mkosi.images/**'
+      - 'mkosi.profiles/**'
+      - 'mkosi.repart/**'
+      - 'mkosi.sync'
+      - 'mkosi.postoutput'
+      - 'bootconf.txt'
+      - 'config.txt'
+      - 'curl.txt'
+      - 'efivars.json'
+      - '.github/workflows/mkosi.yml'
 
 permissions:
   contents: write
@@ -14,6 +27,8 @@ jobs:
     runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # mkosi.version runs `git describe`
       - name: Pin SOURCE_DATE_EPOCH to the commit timestamp
         run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - name: Install mkosi
@@ -44,7 +59,6 @@ jobs:
           cat << EOF > mkosi.crt
           ${{ secrets.MKOSI_CRT }}
           EOF
-          echo -n ${{ github.ref_name }} > mkosi.version
           echo -n 8c58b3b9-7383-50e6-aed7-8d8341fdaf5f > mkosi.seed
           mkosi --json summary|jq -r '.Images[-1]|{OUTPUT_DIR:.OutputDirectory,OUTPUT:.Output,IMAGE_ID:.ImageId}|to_entries|map("\(.key)=\(.value)\n")|join("")' >> $GITHUB_ENV
       - name: Build images
@@ -90,6 +104,9 @@ jobs:
         uses: softprops/action-gh-release@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
+          # stays a draft until every asset is uploaded (next step), so
+          # releases/latest/download - the sysupdate source - never points at a
+          # half-populated release
           draft: true
           fail_on_unmatched_files: true
           generate_release_notes: false
@@ -103,6 +120,11 @@ jobs:
             ${{ env.OUTPUT_DIR }}/boot.img
             ${{ env.OUTPUT_DIR }}/boot.sig
             ${{ env.OUTPUT_DIR }}/SHA256SUMS
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${{ github.ref_name }}" --draft=false --latest
       - name: Build cache
         if: "!startsWith(github.ref, 'refs/tags/')"
         run: sudo tar -cf mkosi.cache.tar.zst mkosi.cache --use-compress-program zstdmt

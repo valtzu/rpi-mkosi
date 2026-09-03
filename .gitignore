@@ -5,10 +5,10 @@
 /mkosi.crt
 /mkosi.key
 mkosi.rootpw
-/mkosi.version
 /mkosi.seed
 /mkosi.local.conf
 /mkosi.cache/
+/mkosi.builddir/
 /mkosi.output/
 /mkosi.tools.manifest
 /mkosi.tools/
