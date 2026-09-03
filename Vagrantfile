@@ -22,7 +22,7 @@ Vagrant.configure("2") do |config|
     echo "cd ~/build" >> ~/.bashrc
 
     pipx ensurepath
-    pipx install git+https://github.com/systemd/mkosi.git@v26
+    pipx install git+https://github.com/systemd/mkosi.git@v27
     SETUP
   config.vm.provision:shell, privileged: true, run: 'always', inline: <<-SETUP
     sysctl --ignore --write kernel.apparmor_restrict_unprivileged_unconfined=0
