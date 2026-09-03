@@ -1,0 +1,12 @@
+#!/bin/bash -e
+
+# Sync scripts are the only ones that run with host networking, so the build
+# host's address is resolved here and stashed for mkosi.finalize (which runs
+# without network) to bake into the dev sysupdate.d transfers.
+
+host=${SYSUPDATE_HOST:-}
+[[ -n "$host" ]] || host=$(hostname -I | tr ' ' '\n' | grep -E '^[0-9]+(\.[0-9]+){3}$' | grep -vE '^127\.' | head -1)
+[[ -n "$host" ]] || { echo "dev profile: could not determine build host IP; set SYSUPDATE_HOST=<ip>" >&2; exit 1; }
+
+mkdir -p "$SRCDIR/cache"
+printf '%s\n' "$host" > "$SRCDIR/cache/build-host"

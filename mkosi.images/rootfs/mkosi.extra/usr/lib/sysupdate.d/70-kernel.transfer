@@ -5,7 +5,8 @@ Verify=no
 [Source]
 Type=url-file
 Path=https://github.com/valtzu/rpi-mkosi/releases/latest/download
-MatchPattern=%M_@v.efi.xz
+MatchPattern=%M_@v.efi.xz \
+             %M_@v.efi.zst
 
 [Target]
 Type=regular-file

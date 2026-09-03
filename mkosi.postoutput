@@ -2,6 +2,23 @@
 
 set -eo pipefail
 
+# dev profile: compress the split artifacts and generate the SHA256SUMS manifest
+# that systemd-sysupdate's url-file source enumerates versions from (`mkosi serve`
+# does not do either). zstd --fast: the usr partition is a 2G ext4 image that is
+# mostly zeros - we only care about not shipping those over the wire, not ratio,
+# and the Pi has to decompress it in the update loop.
+if [[ " $PROFILES " == *" dev "* && "$IMAGE_ID" == "system" ]]; then
+  ( cd "$OUTPUTDIR"
+    for f in ${IMAGE_ID}_*.usr-*.raw ${IMAGE_ID}_*.efi; do
+      zstd -q -f -T0 --fast=4 --rm "$f"
+    done
+    sha256sum ${IMAGE_ID}_*.usr-*.raw.zst ${IMAGE_ID}_*.efi.zst > SHA256SUMS
+  )
+fi
+
+# dev builds carry no package changelog (ManifestFormat= in mkosi.profiles/dev)
+[[ " $PROFILES " == *" dev "* ]] && exit 0
+
 new_changelog=$OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog
 diff_path=${new_changelog}.diff
 

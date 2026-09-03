@@ -1,0 +1,3 @@
+# dev: don't let a degraded boot (e.g. mkosi serve unreachable) roll the UKI
+# back - keep whatever was flashed/updated
+disable systemd-boot-check-no-failures.service

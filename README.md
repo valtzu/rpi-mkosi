@@ -26,15 +26,50 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 
 ### On every boot
 
-**NOTE:** This is default behavior of `systemd-sysupdate`
+```mermaid
+flowchart TD
+    menu(["systemd-boot — pick a profile"])
+    menu --> main["main (default)"]
+    menu --> latest["latest"]
 
-1. After 15 minutes of uptime, query updates from GitHub releases using `systemd-sysupdate`
-   * Download the new `usr` + `verity` + `verity-sig` partitions directly into
-     the `_empty` partitions
-   * Download the new UKI to `/efi/EFI/Linux/system_x.x.x.efi`
-2. Periodically check if a new version is installed
-   * if found, reboot
-     * if reboot fails, auto-rollback to previous version (untested!)
+    main --> idle["run the installed version<br/>(sysupdate timers stay inert)"]
+
+    latest --> gate["cmdline has sysupdate.update=latest<br/>so the sysupdate timers run"]
+    gate --> upd["systemd-sysupdate update<br/>default: ~15 min after boot, then every few hours<br/>dev profile: ~1 min after boot, then every ~2 min"]
+    src[("update source:<br/>GitHub releases (default)<br/>build host :8081 (dev profile)")] -. HTTP .-> upd
+    upd --> slot["write into the spare A/B slot:<br/>usr + verity + verity-sig partitions<br/>+ new UKI onto the ESP"]
+    slot --> keep["previous slot kept<br/>for rollback on a failed boot"]
+    slot --> reb["systemd-sysupdate reboot<br/>default: 04:10 window<br/>dev profile: as soon as staging finishes"]
+    reb --> menu
+```
+
+The UKI carries a second profile, **`latest`**, that opts in to automatic
+updates — its command line adds `sysupdate.update=latest`, and both stock
+systemd timers are gated behind
+`ConditionKernelCommandLine=sysupdate.update=latest`:
+
+1. `systemd-sysupdate.timer` → `systemd-sysupdate update` downloads the new
+   `usr` + `verity` + `verity-sig` into the spare `_empty` partitions and the
+   new UKI into the ESP (15min after boot, then every few hours).
+2. `systemd-sysupdate-reboot.timer` → reboots into a newer version once one has
+   been fully staged (04:10 window). Drop-ins:
+   * skip while `systemd-sysupdate.service` is still running — its `reboot` verb
+     counts a half-written version as installed
+     ([systemd#33339](https://github.com/systemd/systemd/issues/33339)) and would
+     otherwise loop-reboot mid-download
+   * `shutdown --reboot +2 "…"` (wall + grace) when someone is logged in,
+     `+0` otherwise, instead of `systemd-sysupdate reboot`'s one-warning drop
+
+The spare `_empty` partitions these downloads land in are created by
+`systemd-repart` in the initrd on first boot, long before the timers fire.
+
+**`main`** (`@0`, the default entry that `ukify` always emits) leaves both
+timers inert — boot it to stay on the installed version, e.g. if `latest` just
+broke.
+
+`systemd-sysupdate` reads the transfer definitions from `/usr/lib/sysupdate.d/`;
+by default the source is this repo's GitHub releases. Auto-rollback to the
+previous version on a failed boot is wired but untested.
 
 ### Reproducible builds
 
@@ -115,3 +150,44 @@ mkosi
 ```
 mkosi vm
 ```
+
+### Fast iteration on real hardware (`dev` profile)
+
+`mkosi.version` is a script: a dirty working tree builds as `YYYYMMDD.HHMMSS`
+(always newer than what's installed), a clean tree as the git ref.
+
+The `dev` profile:
+
+1. drops `[Source] Path=` overrides into the `sysupdate.d` transfers (via
+   `*.transfer.d/`) so they pull from this build host (`mkosi serve`, HTTP port
+   8081) instead of GitHub releases — the base `MatchPattern` lists both the
+   `.xz` (releases) and `.zst` (dev) name,
+2. `mkosi.postoutput` runs `zstd --fast` over the split artifacts — the `usr`
+   partition is a 2 GB ext4 image that's mostly zeros, so this is ~4× less to
+   transfer for almost no CPU either end,
+3. defaults the boot menu to the `latest` entry (`loader.conf`),
+4. runs the update check ~1min after boot then every ~2min (`RandomizedDelaySec=0`),
+   and
+5. reboots the instant an update finishes staging (`OnSuccess=` chained off
+   `systemd-sysupdate.service`) instead of waiting for the 04:10 window.
+
+A Pi on the same network re-flashes itself from your working tree shortly after
+each boot:
+
+```mermaid
+flowchart LR
+    edit["edit code"] --> build["mkosi --profile dev<br/>(version = timestamp)"]
+    build --> serve["mkosi --profile dev serve<br/>:8081"]
+    serve -. HTTP .-> pi
+    pi["Pi booted on latest"] --> pull["sysupdate sees a newer timestamp and pulls it<br/>~1 min after boot, then every ~2 min<br/>(vs the stock 15 min / nightly)"]
+    pull --> reboot["reboot into it<br/>(as soon as staging finishes)"]
+    reboot --> pi
+```
+
+```
+mkosi --profile dev            # build; the build host IP is autodetected
+mkosi --profile dev serve      # serve mkosi.output/ on :8081
+```
+
+The build host address is resolved in `mkosi.sync` (`hostname -I`); override it
+with `SYSUPDATE_HOST=<ip> mkosi --profile dev` if the wrong interface is picked.
