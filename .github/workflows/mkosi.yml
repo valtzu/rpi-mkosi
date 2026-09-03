@@ -63,7 +63,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: Test images
-        run: sudo mkosi '--kernel-command-line-extra=systemd.run="echo hello"' vm
+        run: mkosi '--kernel-command-line-extra=systemd.run="echo hello"' vm
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.{raw,efi,changelog}
