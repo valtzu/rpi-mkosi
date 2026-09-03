@@ -14,7 +14,10 @@ if ! [ -f $SRCDIR/cache/latest.changelog.xz ] || ! [ -s $SRCDIR/cache/latest.cha
   >&2 echo "Warning: Previous changelog not found"
 fi
 
-diff -u <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path || true
+# --label: the default headers embed the process-substitution fd path and a
+# wall-clock mtime, making $diff_path non-reproducible.
+diff -u --label previous.changelog --label current.changelog \
+  <(xzcat $SRCDIR/cache/latest.changelog.xz) $new_changelog > $diff_path || true
 
 if ! [ -s $diff_path ] ; then
   echo 'No changes in OS packages' | tee $diff_path $diff_path.md
