@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v7
+      - name: Pin SOURCE_DATE_EPOCH to the commit timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - name: Install mkosi
         uses: systemd/mkosi@v27
       - name: Tolerate missing package changelogs
@@ -43,6 +45,7 @@ jobs:
           ${{ secrets.MKOSI_CRT }}
           EOF
           echo -n ${{ github.ref_name }} > mkosi.version
+          echo -n 8c58b3b9-7383-50e6-aed7-8d8341fdaf5f > mkosi.seed
           mkosi --json summary|jq -r '.Images[-1]|{OUTPUT_DIR:.OutputDirectory,OUTPUT:.Output,IMAGE_ID:.ImageId}|to_entries|map("\(.key)=\(.value)\n")|join("")' >> $GITHUB_ENV
       - name: Build images
         # forky's apt indices can outrun the mirror's pool during a sync; retry

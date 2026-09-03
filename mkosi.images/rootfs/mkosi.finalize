@@ -20,12 +20,13 @@ virt-fw-vars \
 # rpi-eeprom-digest stamps "ts: $(date -u +%s)" into the .sig files unless
 # SOURCE_DATE_EPOCH is set, and bootconf.sig is embedded verbatim into
 # pieeprom.upd. Without this every build produced a byte-different image, so the
-# bootloader self-update reflashed the EEPROM on the next boot. Pin it to the
-# newest mtime of the inputs that actually end up in the EEPROM: stable across
-# rebuilds of an unchanged tree (no reflash), advances the moment bootconf.txt,
-# the signing key or the pinned EEPROM version is edited (reflash), no commit
-# required.
-export SOURCE_DATE_EPOCH=$(stat -c %Y $SRCDIR/bootconf.txt $SRCDIR/mkosi.conf $SRCDIR/mkosi.key | sort -n | tail -1)
+# bootloader self-update reflashed the EEPROM on the next boot. The CI pipeline
+# exports a commit-pinned SOURCE_DATE_EPOCH; honour it when present. Otherwise
+# (local dev) fall back to the newest mtime of the inputs that actually end up in
+# the EEPROM: stable across rebuilds of an unchanged tree (no reflash), advances
+# the moment bootconf.txt, the signing key or the pinned EEPROM version is edited
+# (reflash), no commit required.
+export SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH:-$(stat -c %Y $SRCDIR/bootconf.txt $SRCDIR/mkosi.conf $SRCDIR/mkosi.key | sort -n | tail -1)}
 
 # Only the config is RSA-signed; pieeprom.sig is a corruption guard, not a signature.
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $SRCDIR/bootconf.txt -o $TMPDIR/bootconf.sig
@@ -41,14 +42,25 @@ cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -i $TMPDIR/pieeprom.upd -o $TMP
 
 # Emitted into $OUTPUTDIR (-> mkosi.output/) as well so it can be served over
 # TFTP/HTTP for netboot, not just baked into the ESP.
+# -N pins the volume serial (else mformat derives it from wall-clock time); the
+# explicit + sorted mcopy order pins the FAT directory layout (mcopy -s recurses
+# in readdir order, which is not stable).
 truncate -s 8M $OUTPUTDIR/boot.img
-mformat -i $OUTPUTDIR/boot.img -L 16 ::
-mcopy -i $OUTPUTDIR/boot.img -s start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd overlays $SRCDIR/config.txt ::
+mformat -i $OUTPUTDIR/boot.img -L 16 -N "$(printf '%08x' "$SOURCE_DATE_EPOCH")" ::
+mcopy -i $OUTPUTDIR/boot.img start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd $SRCDIR/config.txt ::
+mmd -i $OUTPUTDIR/boot.img ::/overlays
+LC_ALL=C mcopy -i $OUTPUTDIR/boot.img overlays/* ::/overlays/
 mcopy -i $OUTPUTDIR/boot.img $TMPDIR/pieeprom.upd $TMPDIR/pieeprom.sig ::
 cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -k $SRCDIR/mkosi.key -i $OUTPUTDIR/boot.img -o $OUTPUTDIR/boot.sig
 
 install -m 0755 $CACHEDIR/k3s $BUILDROOT/usr/bin/k3s
-install -m 0400 -D $OUTPUTDIR/boot.{img,sig} $BUILDROOT/efi/
+install -m 0400 -D $OUTPUTDIR/boot.sig $BUILDROOT/efi/boot.sig
+# --sparse=never keeps the shipped copy hole-free so `tar --sparse` (hardcoded by
+# mkosi) stores it as a plain member. Its sparse encoding embeds the archiving
+# PID in the member name (GNUSparseFile.<pid>), which breaks reproducibility.
+install -d -m 0700 $BUILDROOT/efi
+cp --sparse=never $OUTPUTDIR/boot.img $BUILDROOT/efi/boot.img
+chmod 0400 $BUILDROOT/efi/boot.img
 
 mkdir -pm 0700 $BUILDROOT/root/.ssh
 # todo: use $(jq -r '.SshKey' $MKOSI_CONFIG) instead of hardcoded mkosi.key once the fix is released https://github.com/systemd/mkosi/pull/2574

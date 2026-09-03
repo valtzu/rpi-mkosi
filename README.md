@@ -12,7 +12,7 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
      * `linux-image-generic` from the distribution 
      * `nvmem-raspberrypi-otp` kernel module from [raspberrypi/linux](https://github.com/raspberrypi/linux/blob/rpi-6.12.y/drivers/nvmem/raspberrypi-otp.c)
 2. Readonly `/usr` partition
-   * Debian Trixie distribution, other systemd>=256 distros should work too
+   * Debian Forky distribution, other systemd>=256 distros should work too
    * "Golden" `/etc` stored into `/usr/share/factory/etc`
    * verity & verity-sig partitions make sure the contents are not tampered with
 
@@ -35,6 +35,24 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 2. Periodically check if a new version is installed
    * if found, reboot
      * if reboot fails, auto-rollback to previous version (untested!)
+
+### Reproducible builds
+
+Package versions are pinned to a [snapshot.debian.org](https://snapshot.debian.org)
+timestamp (`Snapshot=` / `ToolsTreeSnapshot=` in [`mkosi.conf`](mkosi.conf)), and
+the build is byte-reproducible: two builds of the same commit produce identical
+`system_.raw`, `system_.efi`, `rootfs_.tar`, `initrd_`, `boot.img` and the
+`usr`/verity/verity-sig partitions. CI pins `SOURCE_DATE_EPOCH` to the commit
+timestamp and writes a static `mkosi.seed` (the repart seed); to reproduce
+locally:
+
+```bash
+echo -n 8c58b3b9-7383-50e6-aed7-8d8341fdaf5f > mkosi.seed
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) mkosi -f build
+```
+
+Bumping packages is a one-line change: point both snapshot settings at a newer
+timestamp (latest under `https://snapshot.debian.org/archive/debian/?year=YYYY&month=M`).
 
 ## Setup dev env
 
