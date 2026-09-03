@@ -91,19 +91,19 @@ no PAT:
 
 ## Setup dev env
 
-Everything is done inside virtual machine since we need quite recent systemd + previously `mkosi` required `root` access.
+`mkosi` runs unprivileged now, so the build happens directly on the host - no
+VM. You need a recent systemd (>=256) and `mkosi` v27:
 
 ```bash
-vagrant up
-vagrant ssh
+pipx install git+https://github.com/systemd/mkosi.git@v27
 ```
 
-### Generate Secure Boot keys
-``` 
-mkosi --directory="" genkey
+Cross-building for aarch64 also needs `qemu-user-static` + `binfmt-support` (or
+your distro's equivalent) registered.
 
-# If using Vagrant with rsync, copy keys back to host so you don't lose them
-cp mkosi.key mkosi.crt /vagrant/ 
+### Generate Secure Boot keys
+```
+mkosi --directory="" genkey
 ```
 
 ### Build image for Raspberry Pi
