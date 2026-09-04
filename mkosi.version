@@ -1,14 +1,19 @@
 #!/bin/sh
-# Image version = `git describe`: exactly the tag on a release build, and
-# <tag>-<commits>-g<sha> otherwise. Uncommitted changes append a timestamp so
+# Image version = the bare tag, plus -<unix-time> when the tree is dirty (so
 # every local `mkosi build` is a distinct, monotonically newer version that a
-# running device will sysupdate to. SOURCE_DATE_EPOCH (set by CI and by the
-# reproducible-build recipe) is preferred so the version stays constant across
-# the build -> vm -> release steps of one run.
+# running device will sysupdate to). SOURCE_DATE_EPOCH (set by CI and by the
+# reproducible-build recipe) is preferred over the wall clock so the version
+# stays constant across the build -> vm -> release steps of one run.
 #
-# (mkosi.profiles/dev/mkosi.version overrides this file whenever the dev
-# profile is active - this script runs too early to see $PROFILES and branch
-# on it itself.)
-v=$(git describe --tags --always --match '[0-9]*' 2>/dev/null || echo 0)
+# No -<commits>-g<sha> even between tags: GPT partition labels cap at 36
+# chars and system_<version>_verity_sig eats 18 of those - the full
+# git-describe descriptor alone can already blow that budget a few commits
+# past a tag, and systemd-sysupdate then refuses to write the partition
+# ('Formatted pattern is not suitable as GPT partition label'). A profile-only
+# version of this fix (overriding just mkosi.version for the dev profile) had
+# to be reverted - BaseTrees=%O/rootfs_%v in mkosi.conf gets %v expanded
+# before profile config is parsed, so it kept the pre-shortened version
+# regardless, and pointed builds at a base tree that no longer existed.
+v=$(git describe --tags --always --match '[0-9]*' --abbrev=0 2>/dev/null || echo 0)
 [ -z "$(git status --porcelain 2>/dev/null)" ] || v="$v-${SOURCE_DATE_EPOCH:-$(date +%s)}"
 printf '%s\n' "$v"
