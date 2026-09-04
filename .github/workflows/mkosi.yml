@@ -22,6 +22,10 @@ on:
 permissions:
   contents: write
 
+env:
+  # dev is on by default (fast local iterate loop); CI wants release instead.
+  MKOSI_PROFILES: --profile= --profile=disk --profile=release
+
 jobs:
   build-and-release:
     runs-on: ubuntu-26.04-arm
@@ -60,11 +64,11 @@ jobs:
           ${{ secrets.MKOSI_CRT }}
           EOF
           echo -n 8c58b3b9-7383-50e6-aed7-8d8341fdaf5f > mkosi.seed
-          mkosi --json summary|jq -r '.Images[-1]|{OUTPUT_DIR:.OutputDirectory,OUTPUT:.Output,IMAGE_ID:.ImageId}|to_entries|map("\(.key)=\(.value)\n")|join("")' >> $GITHUB_ENV
+          mkosi $MKOSI_PROFILES --json summary|jq -r '.Images[-1]|{OUTPUT_DIR:.OutputDirectory,OUTPUT:.Output,IMAGE_ID:.ImageId}|to_entries|map("\(.key)=\(.value)\n")|join("")' >> $GITHUB_ENV
       - name: Build images
         # forky's apt indices can outrun the mirror's pool during a sync; retry
         # once to pick up a consistent index rather than fail the whole build.
-        run: mkosi build || mkosi build
+        run: mkosi $MKOSI_PROFILES build || mkosi $MKOSI_PROFILES build
       - name: Setup Node.js
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/setup-node@v6
@@ -90,7 +94,7 @@ jobs:
             "$previous_tag" \
             ${{ github.ref_name }}
       - name: Test images
-        run: mkosi '--kernel-command-line-extra=systemd.run="echo hello"' vm
+        run: mkosi $MKOSI_PROFILES '--kernel-command-line-extra=systemd.run="echo hello"' vm
       - name: Compress outputs
         if: startsWith(github.ref, 'refs/tags/')
         run: xz -0 ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}*.{raw,efi,changelog}

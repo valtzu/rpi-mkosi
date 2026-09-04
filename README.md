@@ -84,8 +84,13 @@ byte-reproducible: two builds of the same commit produce an identical disk image
 
 ```bash
 echo -n 8c58b3b9-7383-50e6-aed7-8d8341fdaf5f > mkosi.seed
-SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) mkosi -f build
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) mkosi --profile= --profile=disk --profile=release -f build
 ```
+
+(`--profile= --profile=disk --profile=release` matches what CI builds - see
+[Profiles](#profiles) below. Without it you'd be comparing against your own
+`dev`-profile build instead, which is still reproducible, just not the same
+image CI ships.)
 
 ### Versioning
 
@@ -136,6 +141,27 @@ pipx install git+https://github.com/systemd/mkosi.git@v27
 Cross-building for aarch64 also needs `qemu-user-static` + `binfmt-support` (or
 your distro's equivalent) registered.
 
+### Profiles
+
+Two of the three `mkosi.profiles/` are on by default (`Profiles=disk,dev` in
+[`mkosi.conf`](mkosi.conf)), so a bare `mkosi build`/`mkosi vm`/`mkosi serve`
+is the fast local iterate loop described below - no `--profile` needed.
+
+* **`disk`** - always on. Assembles the actual disk image (`Format=disk`) from
+  the `rootfs`/`initrd` subimages; without it `mkosi` just builds those.
+* **`dev`** - on by default. Points sysupdate at this build host instead of
+  GitHub releases, compresses artifacts for the transfer, and speeds up the
+  update/reboot cadence - see [Fast iteration](#fast-iteration-on-real-hardware)
+  below.
+* **`release`** - off by default, what CI builds with. Resets `Profiles=` to
+  `disk,release` (dropping `dev`) so the build points at GitHub releases,
+  keeps the package changelog, and uses the stock update cadence:
+  ```bash
+  mkosi --profile= --profile=disk --profile=release build
+  ```
+  (the empty `--profile=` resets the list instead of appending to it - see
+  mkosi's docs on collection-type settings.)
+
 ### Generate Secure Boot keys
 ```
 mkosi --directory="" genkey
@@ -151,12 +177,9 @@ mkosi
 mkosi vm
 ```
 
-### Fast iteration on real hardware (`dev` profile)
+### Fast iteration on real hardware
 
-`mkosi.version` is a script: a dirty working tree builds as `YYYYMMDD.HHMMSS`
-(always newer than what's installed), a clean tree as the git ref.
-
-The `dev` profile:
+The `dev` profile (see [Profiles](#profiles) above - on by default):
 
 1. drops `[Source] Path=` overrides into the `sysupdate.d` transfers (via
    `*.transfer.d/`) so they pull from this build host (`mkosi serve`, HTTP port
@@ -176,18 +199,18 @@ each boot:
 
 ```mermaid
 flowchart LR
-    edit["edit code"] --> build["mkosi --profile dev<br/>(version = timestamp)"]
-    build --> serve["mkosi --profile dev serve<br/>:8081"]
+    edit["edit code"] --> build["mkosi build<br/>(dev is on by default)"]
+    build --> serve["mkosi serve<br/>:8081"]
     serve -. HTTP .-> pi
-    pi["Pi booted on latest"] --> pull["sysupdate sees a newer timestamp and pulls it<br/>~1 min after boot, then every ~2 min<br/>(vs the stock 15 min / nightly)"]
+    pi["Pi booted on latest"] --> pull["sysupdate sees a newer version and pulls it<br/>~1 min after boot, then every ~2 min<br/>(vs the stock 15 min / nightly)"]
     pull --> reboot["reboot into it<br/>(as soon as staging finishes)"]
     reboot --> pi
 ```
 
 ```
-mkosi --profile dev            # build; the build host IP is autodetected
-mkosi --profile dev serve      # serve mkosi.output/ on :8081
+mkosi build      # build; the build host IP is autodetected
+mkosi serve      # serve mkosi.output/ on :8081
 ```
 
 The build host address is resolved in `mkosi.sync` (`hostname -I`); override it
-with `SYSUPDATE_HOST=<ip> mkosi --profile dev` if the wrong interface is picked.
+with `SYSUPDATE_HOST=<ip> mkosi build` if the wrong interface is picked.
