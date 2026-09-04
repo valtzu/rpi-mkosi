@@ -1,4 +1,4 @@
-enable sshd-keygen.service
+enable ssh-keygen.service
 disable k3s.service
 disable k3s-agent.service
 disable k3s-cluster-init.service
