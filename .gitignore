@@ -12,4 +12,5 @@ mkosi.rootpw
 /mkosi.tools.manifest
 /mkosi.tools/
 /*.log
+/*.journal
 /cache

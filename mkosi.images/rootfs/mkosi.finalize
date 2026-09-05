@@ -67,10 +67,10 @@ mkdir -pm 0700 $BUILDROOT/root/.ssh
 ssh-keygen -f $SRCDIR/mkosi.key -y > $BUILDROOT/root/.ssh/authorized_keys
 chmod 0700 $BUILDROOT/root/.ssh/authorized_keys
 
-# dev profile: point the sysupdate.d transfers at this build host (mkosi serve).
-# The address is resolved in mkosi.sync (which has host networking) and read
-# back here.
-dev_transfers=$(grep -rl '@BUILD_HOST@' "$BUILDROOT"/usr/lib/sysupdate.d/ 2>/dev/null || true)
+# dev profile: point sysupdate and journal-upload at this build host (mkosi
+# serve / systemd-journal-remote). The address is resolved in mkosi.sync
+# (which has host networking) and read back here.
+dev_transfers=$(grep -rl '@BUILD_HOST@' "$BUILDROOT"/usr/lib/ 2>/dev/null || true)
 if [ -n "$dev_transfers" ]; then
   host=${SYSUPDATE_HOST:-$(cat "$SRCDIR/cache/build-host" 2>/dev/null || true)}
   [ -n "$host" ] || { echo "dev profile: $SRCDIR/cache/build-host missing (mkosi.sync should have written it)" >&2; exit 1; }

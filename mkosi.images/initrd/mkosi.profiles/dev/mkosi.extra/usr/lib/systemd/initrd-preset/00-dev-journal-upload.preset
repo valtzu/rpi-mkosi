@@ -1,0 +1,4 @@
+# dev: bring up DHCP and stream the journal to the build host - see the
+# WantedBy=sysinit.target drop-ins that make this actually take effect here
+enable systemd-networkd.service
+enable systemd-journal-upload.service

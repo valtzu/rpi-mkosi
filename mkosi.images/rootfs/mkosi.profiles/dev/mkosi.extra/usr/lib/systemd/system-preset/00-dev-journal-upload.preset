@@ -1,0 +1,2 @@
+# dev: stream this device's journal to the build host - see journal-upload.conf.d
+enable systemd-journal-upload.service

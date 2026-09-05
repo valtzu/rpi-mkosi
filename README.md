@@ -192,7 +192,17 @@ The `dev` profile (see [Profiles](#profiles) above - on by default):
 4. runs the update check ~1min after boot then every ~2min (`RandomizedDelaySec=0`),
    and
 5. reboots the instant an update finishes staging (`OnSuccess=` chained off
-   `systemd-sysupdate.service`) instead of waiting for the 04:10 window.
+   `systemd-sysupdate.service`) instead of waiting for the 04:10 window, and
+6. streams its journal to the build host via `systemd-journal-upload`, so a
+   reboot loop is still debuggable after it takes the network/serial console
+   down with it. `systemd-journal-remote` (to receive it) lives in the tools
+   tree (`ToolsTreePackages=` in `mkosi.conf`) rather than needing a host
+   package install - `mkosi box` runs it with real host networking:
+   ```
+   mkosi box -- /usr/lib/systemd/systemd-journal-remote \
+     --listen-http=0.0.0.0:19532 --split-mode=none --output=rpi-dev.journal
+   mkosi box -- journalctl --merge -fe --file rpi-dev.journal   # in another shell
+   ```
 
 A Pi on the same network re-flashes itself from your working tree shortly after
 each boot:
