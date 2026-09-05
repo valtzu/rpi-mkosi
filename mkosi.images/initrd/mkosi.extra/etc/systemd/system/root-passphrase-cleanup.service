@@ -1,0 +1,17 @@
+# The initrd's /run tmpfs is carried over into the booted system, so the
+# cached passphrase (/run/root-passphrase.key) would otherwise be readable by
+# root after boot - defeating the point of deriving it in the firmware and
+# locking the OTP key. Wipe it (and tear down the socket) once both in-initrd
+# consumers have run, before switch-root.
+[Unit]
+DefaultDependencies=no
+After=systemd-repart.service systemd-cryptsetup@root.service
+Before=initrd-switch-root.target
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/systemctl stop root-passphrase.socket
+ExecStart=/usr/bin/rm -f /run/root-passphrase.key /run/root-passphrase.sock
+
+[Install]
+WantedBy=initrd-switch-root.target

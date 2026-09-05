@@ -1,0 +1,10 @@
+[Unit]
+DefaultDependencies=no
+Wants=modprobe@rpi-crypto-passphrase.service
+After=modprobe@rpi-crypto-passphrase.service
+
+[Service]
+Type=oneshot
+StandardError=journal+console
+ImportCredential=cryptsetup.passphrase
+ExecStart=/usr/lib/systemd/rpi-root-passphrase

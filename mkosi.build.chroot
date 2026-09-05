@@ -1,19 +1,12 @@
 #!/bin/bash -ex
 
-# ------------------------------------------------------------------------------------------- #
-# Here we build nvmem_raspberrypi_otp kernel module as it's not included in non-rpi kernels   #
-# If some day the module lands on mainline / distro-packaged kernel, this file can be removed #
-# ------------------------------------------------------------------------------------------- #
+# Build the rpi-crypto-passphrase kernel module: it only needs
+# rpi_firmware_property(), which is exported by the upstream in-tree
+# raspberrypi-firmware driver, so it builds against the installed kernel's
+# own headers - no downstream kernel source tree required.
 
 kver=$(basename /usr/lib/modules/*)
-# "6.8.0-31-generic" -> "6.8"
-kver_minor_major=$(echo $kver|grep -oE '^[0-9]+\.[0-9]+')
-
-rpi_kernel=/usr/src/linux-rpi-$kver_minor_major
 installed_kernel=/usr/lib/modules/$kver/build
-
-# Only build rpi modules
-sed -E '/RASPBERRYPI/! s/^obj-\$\(CONFIG_NVMEM_/#\0/;/raspberrypi|nvmem_core/! s/^nvmem/#\0/' -i $rpi_kernel/drivers/nvmem/Makefile
 
 mkdir -p $installed_kernel/certs $installed_kernel/output
 ln -s $SRCDIR/mkosi.key $installed_kernel/certs/signing_key.pem
@@ -21,6 +14,11 @@ ln -s $SRCDIR/mkosi.crt $installed_kernel/certs/signing_key.x509
 ln -s $SRCDIR/mkosi.key $installed_kernel/output/signing_key.pem
 ln -s $SRCDIR/mkosi.crt $installed_kernel/output/signing_key.x509
 
-export CONFIG_NVMEM_RASPBERRYPI_OTP=m
-make -j$(nproc) -C $installed_kernel M=$rpi_kernel/drivers/nvmem modules
-make -j$(nproc) -C $installed_kernel M=$rpi_kernel/drivers/nvmem modules_install INSTALL_MOD_PATH=$DESTDIR INSTALL_MOD_DIR=extra/drivers/nvmem
+moddir=$(mktemp -d)
+cp $SRCDIR/rpi-crypto-passphrase.c $SRCDIR/rpi-crypto-passphrase.h $moddir/
+cat > $moddir/Makefile <<'EOF'
+obj-m := rpi-crypto-passphrase.o
+EOF
+
+make -j$(nproc) -C $installed_kernel M=$moddir modules
+make -j$(nproc) -C $installed_kernel M=$moddir modules_install INSTALL_MOD_PATH=$DESTDIR INSTALL_MOD_DIR=extra/drivers/misc

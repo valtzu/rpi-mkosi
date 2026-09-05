@@ -1,0 +1,11 @@
+[Unit]
+DefaultDependencies=no
+Before=systemd-repart.service
+
+[Socket]
+ListenStream=/run/root-passphrase.sock
+SocketMode=0600
+Accept=no
+
+[Install]
+WantedBy=sysinit.target
