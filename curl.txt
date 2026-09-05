@@ -41,6 +41,3 @@ expand-output="{{eeprom_dir}}/pieeprom-{{eeprom_version}}.bin"
 
 url="https://github.com/k3s-io/k3s/releases/download/v1.29.2+k3s1/k3s-arm64"
 expand-output="{{dl_dir}}/k3s"
-
-expand-url="{{dist_url}}/{{latest_changelog}}"
-expand-output="{{dl_dir}}/{{latest_changelog}}"

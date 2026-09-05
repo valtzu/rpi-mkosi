@@ -1,0 +1,13 @@
+#!/bin/bash -e
+
+# Sync scripts are the only ones that run with host networking. Duplicated
+# from mkosi.images/rootfs/mkosi.profiles/dev/mkosi.sync rather than shared -
+# image build order between rootfs and initrd isn't guaranteed, so each image
+# resolves (and writes) its own copy of the build host's address.
+
+host=${SYSUPDATE_HOST:-}
+[[ -n "$host" ]] || host=$(hostname -I | tr ' ' '\n' | grep -E '^[0-9]+(\.[0-9]+){3}$' | grep -vE '^127\.' | head -1)
+[[ -n "$host" ]] || { echo "dev profile: could not determine build host IP; set SYSUPDATE_HOST=<ip>" >&2; exit 1; }
+
+mkdir -p "$SRCDIR/cache"
+printf '%s\n' "$host" > "$SRCDIR/cache/build-host"

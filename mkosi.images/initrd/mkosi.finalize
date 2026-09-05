@@ -1,0 +1,11 @@
+#!/bin/bash -ex
+
+# dev profile: point journal-upload at this build host. The address is
+# resolved in mkosi.sync (which has host networking) and read back here - see
+# mkosi.images/rootfs/mkosi.finalize for the same pattern on the rootfs image.
+dev_files=$(grep -rl '@BUILD_HOST@' "$BUILDROOT"/usr/lib/ 2>/dev/null || true)
+if [ -n "$dev_files" ]; then
+  host=${SYSUPDATE_HOST:-$(cat "$SRCDIR/cache/build-host" 2>/dev/null || true)}
+  [ -n "$host" ] || { echo "dev profile: $SRCDIR/cache/build-host missing (mkosi.sync should have written it)" >&2; exit 1; }
+  sed -i "s/@BUILD_HOST@/$host/g" $dev_files
+fi
