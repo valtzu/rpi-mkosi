@@ -29,8 +29,8 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 ```mermaid
 flowchart TD
     menu(["systemd-boot — pick a profile"])
-    menu --> main["main (default)"]
-    menu --> latest["latest"]
+    menu --> main["main"]
+    menu --> latest["latest (default)"]
 
     main --> idle["run the installed version<br/>(sysupdate timers stay inert)"]
 
@@ -63,9 +63,10 @@ systemd timers are gated behind
 The spare `_empty` partitions these downloads land in are created by
 `systemd-repart` in the initrd on first boot, long before the timers fire.
 
-**`main`** (`@0`, the default entry that `ukify` always emits) leaves both
-timers inert — boot it to stay on the installed version, e.g. if `latest` just
-broke.
+**`main`** (`@0`, the base profile `ukify` always emits) leaves both timers
+inert — boot it to stay on the installed version, e.g. if `latest` just broke.
+`latest` is the default (`efi/loader/loader.conf`), so this needs picking
+manually at the menu.
 
 `systemd-sysupdate` reads the transfer definitions from `/usr/lib/sysupdate.d/`;
 by default the source is this repo's GitHub releases. Auto-rollback to the
@@ -84,10 +85,10 @@ byte-reproducible: two builds of the same commit produce an identical disk image
 
 ```bash
 echo -n 8c58b3b9-7383-50e6-aed7-8d8341fdaf5f > mkosi.seed
-SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) mkosi --profile= --profile=disk --profile=release -f build
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) mkosi --profile= --profile=release -f build
 ```
 
-(`--profile= --profile=disk --profile=release` matches what CI builds - see
+(`--profile= --profile=release` matches what CI builds - see
 [Profiles](#profiles) below. Without it you'd be comparing against your own
 `dev`-profile build instead, which is still reproducible, just not the same
 image CI ships.)
@@ -143,21 +144,19 @@ your distro's equivalent) registered.
 
 ### Profiles
 
-Two of the three `mkosi.profiles/` are on by default (`Profiles=disk,dev` in
-[`mkosi.conf`](mkosi.conf)), so a bare `mkosi build`/`mkosi vm`/`mkosi serve`
-is the fast local iterate loop described below - no `--profile` needed.
+`dev` is on by default (`Profiles=dev` in [`mkosi.conf`](mkosi.conf)), so a
+bare `mkosi build`/`mkosi vm`/`mkosi serve` is the fast local iterate loop
+described below - no `--profile` needed.
 
-* **`disk`** - always on. Assembles the actual disk image (`Format=disk`) from
-  the `rootfs`/`initrd` subimages; without it `mkosi` just builds those.
 * **`dev`** - on by default. Points sysupdate at this build host instead of
   GitHub releases, compresses artifacts for the transfer, and speeds up the
   update/reboot cadence - see [Fast iteration](#fast-iteration-on-real-hardware)
   below.
 * **`release`** - off by default, what CI builds with. Resets `Profiles=` to
-  `disk,release` (dropping `dev`) so the build points at GitHub releases,
-  keeps the package changelog, and uses the stock update cadence:
+  drop `dev`, so the build points at GitHub releases, keeps the package
+  changelog, and uses the stock update cadence:
   ```bash
-  mkosi --profile= --profile=disk --profile=release build
+  mkosi --profile= --profile=release build
   ```
   (the empty `--profile=` resets the list instead of appending to it - see
   mkosi's docs on collection-type settings.)
@@ -190,7 +189,6 @@ The `dev` profile (see [Profiles](#profiles) above - on by default):
    transfer for almost no CPU either end,
 3. defaults the boot menu to the `latest` entry (`loader.conf`),
 4. runs the update check ~1min after boot then every ~2min (`RandomizedDelaySec=0`),
-   and
 5. reboots the instant an update finishes staging (`OnSuccess=` chained off
    `systemd-sysupdate.service`) instead of waiting for the 04:10 window, and
 6. streams its journal to the build host via `systemd-journal-upload`, so a

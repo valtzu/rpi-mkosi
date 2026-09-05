@@ -24,7 +24,7 @@ permissions:
 
 env:
   # dev is on by default (fast local iterate loop); CI wants release instead.
-  MKOSI_PROFILES: --profile= --profile=disk --profile=release
+  MKOSI_PROFILES: --profile= --profile=release
 
 jobs:
   build-and-release:

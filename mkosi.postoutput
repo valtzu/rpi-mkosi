@@ -16,7 +16,7 @@ if [[ " $PROFILES " == *" dev "* && "$IMAGE_ID" == "system" ]]; then
   )
 fi
 
-# dev builds carry no package changelog (ManifestFormat= in mkosi.profiles/dev)
+# dev builds carry no package changelog (ManifestFormat=changelog is release-only)
 [[ " $PROFILES " == *" dev "* ]] && exit 0
 
 new_changelog=$OUTPUTDIR/${IMAGE_ID}_${IMAGE_VERSION}.changelog
