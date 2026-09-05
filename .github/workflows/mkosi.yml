@@ -30,13 +30,13 @@ jobs:
   build-and-release:
     runs-on: ubuntu-26.04-arm
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0   # mkosi.version runs `git describe`
       - name: Pin SOURCE_DATE_EPOCH to the commit timestamp
         run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - name: Install mkosi
-        uses: systemd/mkosi@v27
+        uses: systemd/mkosi@4736cd836108a97772142c461c49f1ddb4172348 # v27
       - name: Tolerate missing package changelogs
         run: |
           action_path=$(dirname "$(dirname "$(readlink -f /usr/bin/mkosi)")")
@@ -46,7 +46,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends jq uidmap systemd-container
       - name: Setup mkosi cache
         id: mkosi-cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: mkosi.cache.tar.zst
           key: mkosi-${{ hashFiles('**/mkosi.conf') }}
@@ -71,7 +71,7 @@ jobs:
         run: mkosi $MKOSI_PROFILES build || mkosi $MKOSI_PROFILES build
       - name: Setup Node.js
         if: startsWith(github.ref, 'refs/tags/')
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
       - name: Generate changelog summary
@@ -115,7 +115,7 @@ jobs:
             echo -e "\n**Full Changelog**: https://github.com/${{ github.repository }}/compare/$previous_tag...${{ github.ref_name }}" >> ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT }}.changelog.diff.md
           fi
       - name: Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           # stays a draft until every asset is uploaded (next step), so
@@ -144,7 +144,7 @@ jobs:
         run: sudo tar -cf mkosi.cache.tar.zst mkosi.cache --use-compress-program zstdmt
       - name: Save cache
         if: "steps.mkosi-cache.outputs.cache-hit != 'true' && !startsWith(github.ref, 'refs/tags/')"
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: mkosi.cache.tar.zst
           key: mkosi-${{ hashFiles('**/mkosi.conf') }}
