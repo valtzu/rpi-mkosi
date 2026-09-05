@@ -190,8 +190,12 @@ The `dev` profile (see [Profiles](#profiles) above - on by default):
 3. defaults the boot menu to the `latest` entry (`loader.conf`),
 4. runs the update check ~1min after boot then every ~2min (`RandomizedDelaySec=0`),
 5. reboots the instant an update finishes staging (`OnSuccess=` chained off
-   `systemd-sysupdate.service`) instead of waiting for the 04:10 window, and
-6. streams its journal to the build host via `systemd-journal-upload`, so a
+   `systemd-sysupdate.service`) instead of waiting for the 04:10 window,
+6. gates `systemd-sysupdate.service` on an `ExecCondition=` that `curl`s the
+   build host — with `mkosi serve` down the poll is skipped, rather than the
+   service failing with a `systemd-pull` "Could not connect to server" every
+   ~2min, and
+7. streams its journal to the build host via `systemd-journal-upload`, so a
    reboot loop is still debuggable after it takes the network/serial console
    down with it. `systemd-journal-remote` (to receive it) lives in the tools
    tree (`ToolsTreePackages=` in `mkosi.conf`) rather than needing a host
