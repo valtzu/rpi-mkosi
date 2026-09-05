@@ -6,10 +6,11 @@ TODO
 ### Provision the root partition encryption key
 
 * The root partition passphrase is now derived via the firmware mailbox's HMAC-SHA256
-  crypto service (OTP key id 0), not read raw from OTP - see
-  `rpi-crypto-passphrase.c`. This requires OTP key id 0 to already
-  hold a valid ECDSA P-256 private key (the `d` component), not an arbitrary random
-  value. Provisioning is still a manual, one-time, out-of-band step, e.g.:
+  crypto service (OTP key id 1 - `rpi-otp-private-key`'s default keystore slot; the
+  module's `key_id=` param overrides it), not read raw from OTP - see
+  `rpi-crypto-passphrase.c`. This requires that key id to already hold a valid ECDSA
+  P-256 private key (the `d` component), not an arbitrary random value. Provisioning
+  is still a manual, one-time, out-of-band step, e.g.:
   ```
   openssl ecparam -name prime256v1 -genkey -noout -out private_key.pem
   openssl ec -in private_key.pem -text -noout | awk '/priv:/{flag=1; next} /pub:/{flag=0} flag' | tr -d ' \n:' | head -n1 > d.hex

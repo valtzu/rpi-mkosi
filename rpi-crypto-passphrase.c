@@ -24,8 +24,16 @@
 
 #include "rpi-crypto-passphrase.h"
 
-/* Pi4 has a single OTP private-key slot (offset 0); see rpi-otp-private-key. */
-#define RPI_FW_CRYPTO_KEY_ID 0
+/*
+ * Firmware crypto key id. rpi-otp-private-key's first keystore slot - the one
+ * its examples provision with "--key-id 1" - is id 1, not 0; on a board whose
+ * key sits there, id 0 makes the firmware reject the HMAC request outright
+ * (mailbox status 0x80000001). Override with rpi-crypto-passphrase.key_id= if
+ * a board is provisioned elsewhere.
+ */
+static u32 key_id = 1;
+module_param(key_id, uint, 0444);
+MODULE_PARM_DESC(key_id, "firmware OTP private-key id to HMAC with (default 1)");
 
 #define TAG_GET_CRYPTO_HMAC_SHA256 0x00030092
 #define TAG_SET_CRYPTO_KEY_STATUS  0x00038090
@@ -77,7 +85,7 @@ static atomic_t rpi_crypto_used = ATOMIC_INIT(0);
 static void rpi_crypto_lock_key(void)
 {
 	struct rpi_fw_key_status_payload lock_req = {
-		.key_id = RPI_FW_CRYPTO_KEY_ID,
+		.key_id = key_id,
 		.status = RPI_CRYPTO_LOCK_ALL,
 	};
 	int ret;
@@ -122,7 +130,7 @@ static long rpi_crypto_passphrase_ioctl(struct file *file, unsigned int cmd,
 	}
 
 	payload->req.flags = 0;
-	payload->req.key_id = RPI_FW_CRYPTO_KEY_ID;
+	payload->req.key_id = key_id;
 	payload->req.length = kreq->message_len;
 	memcpy(payload->req.message, kreq->message, kreq->message_len);
 
