@@ -22,11 +22,13 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 
 1. Create encrypted root partition
    * passphrase derived by the firmware mailbox's crypto service: HMAC-SHA256 of the root
-     disk's own hardware id (MMC CID / NVMe serial), using the OTP-provisioned private key
+     disk's own hardware id (udev `ID_SERIAL_SHORT`), using the OTP-provisioned private key
      ([RPi eeprom OTP registry](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#otp-register-and-bit-definitions)).
      The raw private key never leaves the firmware, and the firmware locks it against further
-     use for the rest of the boot right after computing the HMAC
-     (`root-passphrase.socket`/`.service` + `systemd-repart`'s `KeyFile=` connect-socket support)
+     use for the rest of the boot right after computing the HMAC. `root-passphrase.socket`
+     serves the derived passphrase over an `AF_UNIX` connect-socket to both `systemd-repart`
+     (`KeyFile=`) and `systemd-cryptsetup@root` (`LoadCredential=`); the one firmware
+     derivation is cached in the initrd's tmpfs and wiped before switch-root
    * `/etc` populated from `/usr/share/factory/etc` using `systemd-repart`'s `CopyFiles=`
    * other root directories & files populated with `systemd-tmpfiles` (no custom configuration)
 2. Create 3 empty matching-size partitions (labeled `_empty`) for `/usr` updates

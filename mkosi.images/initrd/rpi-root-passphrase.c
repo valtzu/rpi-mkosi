@@ -1,18 +1,25 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Derives the root disk's LUKS passphrase and writes it (raw, 32 bytes) to
- * stdout, for use as a systemd repart.d KeyFile= connect-socket provider
- * (see root-passphrase.socket/.service).
+ * Serves the root disk's LUKS passphrase (raw bytes) over an AF_UNIX
+ * connect-socket, for both consumers in the initrd:
+ *   - systemd-repart.service        via repart.d KeyFile=/run/root-passphrase.sock
+ *   - systemd-cryptsetup@root.service via LoadCredential=cryptsetup.passphrase:<sock>
  *
- * On Raspberry Pi hardware: HMAC-SHA256(static context + root disk's own
- * hardware id) computed by the firmware mailbox via /dev/rpi-crypto-passphrase
- * (see rpi-crypto-passphrase.c), which also locks the
- * OTP key for the rest of the boot as a side effect.
+ * The firmware can derive the HMAC only once per boot (it locks the OTP key
+ * as a side effect - see rpi-crypto-passphrase.c), but the passphrase is
+ * needed more than once per boot: systemd-repart deactivates the dm-crypt
+ * device after formatting it, so systemd-cryptsetup has to reopen it. So the
+ * first derivation is cached in a tmpfs file (/run/root-passphrase.key,
+ * root-only) and every later connection is answered from that cache.
+ * root-passphrase-cleanup.service removes the cache before initrd-switch-root
+ * so it never reaches the booted system (initrd /run is carried over).
  *
- * Under QEMU (mkosi vm), there is no RPi firmware mailbox, so
- * /dev/rpi-crypto-passphrase never appears (the kernel module's init fails
- * with -ENODEV there); fall back to the static "cryptsetup.passphrase" dev
- * credential set in mkosi.conf's [Runtime] Credentials=.
+ * On Raspberry Pi hardware the passphrase is HMAC-SHA256(static context +
+ * root disk's own hardware id) computed by the firmware mailbox via
+ * /dev/rpi-crypto-passphrase. Under QEMU (mkosi vm) there is no firmware
+ * mailbox and the device never appears; fall back to the static
+ * "cryptsetup.passphrase" dev credential set in mkosi.conf's [Runtime]
+ * Credentials= and imported by the service unit.
  */
 
 #include <ctype.h>
@@ -23,11 +30,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "rpi-crypto-passphrase.h"
 
 #define RPI_CRYPTO_DEV "/dev/rpi-crypto-passphrase"
+#define KEY_CACHE "/run/root-passphrase.key"
 #define STATIC_CONTEXT "rpi-mkosi/root-luks-passphrase:"
 #define LOADER_PARTUUID_EFIVAR \
 	"/sys/firmware/efi/efivars/LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
@@ -118,40 +127,58 @@ static int resolve_boot_disk(char *diskname, size_t diskname_size)
 	return 0;
 }
 
-static int read_trimmed(const char *path, char *buf, size_t bufsize)
-{
-	ssize_t n;
-	int fd = open(path, O_RDONLY);
-	if (fd < 0)
-		return -1;
-	n = read(fd, buf, bufsize - 1);
-	close(fd);
-	if (n <= 0)
-		return -1;
-	while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r' || buf[n - 1] == ' '))
-		n--;
-	buf[n] = '\0';
-	return n ? 0 : -1;
-}
-
+/*
+ * udev's ID_SERIAL_SHORT is the one hardware id that resolves across every
+ * transport we boot from: the raw MMC serial from the CID for an SD card, the
+ * ATA/NVMe serial for a disk, and the USB descriptor serial for a stick - the
+ * bare /sys/block/<disk>/device/serial only exists for some of those. Prefer
+ * ID_SERIAL_SHORT (raw serial, stable across udev versions); fall back to the
+ * composite ID_SERIAL only if the short form is absent.
+ */
 static int read_disk_hardware_id(const char *diskname, char *idbuf, size_t idbuf_size)
 {
-	char path[128];
+	char cmd[256];
+	char line[512];
+	char id_serial[256] = "";
+	char id_serial_short[256] = "";
+	FILE *p;
 
-	snprintf(path, sizeof(path), "/sys/block/%s/device/cid", diskname);
-	if (read_trimmed(path, idbuf, idbuf_size) == 0)
-		return 0;
+	snprintf(cmd, sizeof(cmd),
+		 "udevadm info --query=property --name=/dev/%s 2>/dev/null", diskname);
+	p = popen(cmd, "r");
+	if (!p)
+		return -1;
 
-	snprintf(path, sizeof(path), "/sys/block/%s/device/serial", diskname);
-	return read_trimmed(path, idbuf, idbuf_size);
+	while (fgets(line, sizeof(line), p)) {
+		line[strcspn(line, "\n")] = '\0';
+		if (!strncmp(line, "ID_SERIAL_SHORT=", 16))
+			snprintf(id_serial_short, sizeof(id_serial_short), "%.*s",
+				 (int)sizeof(id_serial_short) - 1, line + 16);
+		else if (!strncmp(line, "ID_SERIAL=", 10))
+			snprintf(id_serial, sizeof(id_serial), "%.*s",
+				 (int)sizeof(id_serial) - 1, line + 10);
+	}
+	pclose(p);
+
+	if (id_serial_short[0])
+		snprintf(idbuf, idbuf_size, "%s", id_serial_short);
+	else if (id_serial[0])
+		snprintf(idbuf, idbuf_size, "%s", id_serial);
+	else
+		return -1;
+
+	return 0;
 }
 
-static int derive_via_firmware(int out_fd)
+static ssize_t derive_via_firmware(unsigned char *out, size_t outsize)
 {
 	struct rpi_crypto_passphrase_req req = { 0 };
 	char diskname[64];
 	char hwid[256];
 	int fd, msglen;
+
+	if (outsize < sizeof(req.hmac))
+		return -1;
 
 	fd = open(RPI_CRYPTO_DEV, O_RDWR);
 	if (fd < 0)
@@ -184,19 +211,19 @@ static int derive_via_firmware(int out_fd)
 	}
 	close(fd);
 
-	return write_all(out_fd, req.hmac, sizeof(req.hmac));
+	memcpy(out, req.hmac, sizeof(req.hmac));
+	return sizeof(req.hmac);
 }
 
 /* mkosi vm / mkosi qemu: no firmware mailbox, use the dev-only static
  * credential set via [Runtime] Credentials=cryptsetup.passphrase in
  * mkosi.conf, imported into $CREDENTIALS_DIRECTORY by the service unit. */
-static int derive_via_dev_credential(int out_fd)
+static ssize_t derive_via_dev_credential(unsigned char *out, size_t outsize)
 {
 	const char *cred_dir = getenv("CREDENTIALS_DIRECTORY");
 	char path[PATH_MAX];
-	char buf[4096];
-	ssize_t n;
-	int fd, ret;
+	ssize_t total = 0, n;
+	int fd;
 
 	if (!cred_dir) {
 		fprintf(stderr, "rpi-root-passphrase: no crypto device and no CREDENTIALS_DIRECTORY\n");
@@ -210,15 +237,38 @@ static int derive_via_dev_credential(int out_fd)
 		return -1;
 	}
 
-	while ((n = read(fd, buf, sizeof(buf))) > 0) {
-		if (write_all(out_fd, buf, n) != 0) {
-			close(fd);
-			return -1;
-		}
-	}
-	ret = n < 0 ? -1 : 0;
+	while (total < (ssize_t)outsize &&
+	       (n = read(fd, out + total, outsize - total)) > 0)
+		total += n;
 	close(fd);
-	return ret;
+
+	return total > 0 ? total : -1;
+}
+
+static ssize_t read_key_cache(unsigned char *out, size_t outsize)
+{
+	ssize_t total = 0, n;
+	int fd = open(KEY_CACHE, O_RDONLY);
+
+	if (fd < 0)
+		return -1;
+	while (total < (ssize_t)outsize &&
+	       (n = read(fd, out + total, outsize - total)) > 0)
+		total += n;
+	close(fd);
+	return total > 0 ? total : -1;
+}
+
+/* Best effort: a concurrent instance winning the O_EXCL race is fine, we
+ * still hold the freshly derived key in our own buffer. */
+static void write_key_cache(const unsigned char *key, size_t keylen)
+{
+	int fd = open(KEY_CACHE, O_WRONLY | O_CREAT | O_EXCL, 0600);
+
+	if (fd < 0)
+		return;
+	write_all(fd, key, keylen);
+	close(fd);
 }
 
 /* Standard systemd socket-activation protocol (sd_listen_fds(3)), read
@@ -237,6 +287,8 @@ static int activation_socket_fd(void)
 
 int main(void)
 {
+	unsigned char key[4096];
+	ssize_t keylen;
 	int listen_fd, conn, ret;
 
 	/* A broken connect-socket write must surface as a clean write() error,
@@ -260,11 +312,22 @@ int main(void)
 		return 1;
 	}
 
-	if (access(RPI_CRYPTO_DEV, F_OK) == 0)
-		ret = derive_via_firmware(conn);
-	else
-		ret = derive_via_dev_credential(conn);
+	keylen = read_key_cache(key, sizeof(key));
+	if (keylen < 0) {
+		if (access(RPI_CRYPTO_DEV, F_OK) == 0)
+			keylen = derive_via_firmware(key, sizeof(key));
+		else
+			keylen = derive_via_dev_credential(key, sizeof(key));
+		if (keylen > 0)
+			write_key_cache(key, keylen);
+	}
 
+	if (keylen <= 0) {
+		close(conn);
+		return 1;
+	}
+
+	ret = write_all(conn, key, keylen);
 	close(conn);
 	return ret == 0 ? 0 : 1;
 }

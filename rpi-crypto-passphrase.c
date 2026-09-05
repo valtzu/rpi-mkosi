@@ -80,9 +80,13 @@ static void rpi_crypto_lock_key(void)
 		.key_id = RPI_FW_CRYPTO_KEY_ID,
 		.status = RPI_CRYPTO_LOCK_ALL,
 	};
+	int ret;
 
-	rpi_firmware_property(rpi_fw, TAG_SET_CRYPTO_KEY_STATUS,
-			       &lock_req, sizeof(lock_req));
+	ret = rpi_firmware_property(rpi_fw, TAG_SET_CRYPTO_KEY_STATUS,
+				     &lock_req, sizeof(lock_req));
+	if (ret || (lock_req.status & VC_MAILBOX_ERROR))
+		pr_err("rpi-crypto-passphrase: failed to lock OTP key (ret=%d status=0x%08x)\n",
+		       ret, lock_req.status);
 }
 
 static long rpi_crypto_passphrase_ioctl(struct file *file, unsigned int cmd,
@@ -164,6 +168,7 @@ static struct miscdevice rpi_crypto_passphrase_miscdev = {
 static int __init rpi_crypto_passphrase_init(void)
 {
 	struct device_node *fw_node;
+	int ret;
 
 	fw_node = of_find_compatible_node(NULL, NULL, "raspberrypi,bcm2835-firmware");
 	if (!fw_node)
@@ -174,12 +179,18 @@ static int __init rpi_crypto_passphrase_init(void)
 	if (!rpi_fw)
 		return -ENODEV;
 
-	return misc_register(&rpi_crypto_passphrase_miscdev);
+	ret = misc_register(&rpi_crypto_passphrase_miscdev);
+	if (ret) {
+		rpi_firmware_put(rpi_fw);
+		rpi_fw = NULL;
+	}
+	return ret;
 }
 
 static void __exit rpi_crypto_passphrase_exit(void)
 {
 	misc_deregister(&rpi_crypto_passphrase_miscdev);
+	rpi_firmware_put(rpi_fw);
 }
 
 module_init(rpi_crypto_passphrase_init);

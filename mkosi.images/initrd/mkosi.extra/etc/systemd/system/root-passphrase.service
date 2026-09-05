@@ -8,5 +8,3 @@ Type=oneshot
 StandardError=journal+console
 ImportCredential=cryptsetup.passphrase
 ExecStart=/usr/lib/systemd/rpi-root-passphrase
-ExecStopPost=-systemctl --no-block stop root-passphrase.socket
-ExecStopPost=-/usr/sbin/rmmod rpi-crypto-passphrase
