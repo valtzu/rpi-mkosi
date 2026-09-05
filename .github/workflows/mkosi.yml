@@ -29,6 +29,7 @@ env:
 jobs:
   build-and-release:
     runs-on: ubuntu-26.04-arm
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
