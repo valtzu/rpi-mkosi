@@ -20,7 +20,36 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # tags, for the patch bump
+      - name: Gate on a pure OS snapshot bump
+        id: gate
+        if: github.event_name == 'schedule'
+        # The weekly cron only exists to ship package updates. If anything else
+        # landed on main since the last release, that release wants a human to
+        # review and cut it - skip the auto-release and let workflow_dispatch
+        # handle it.
+        run: |
+          last_tag=$(git describe --tags --abbrev=0 --match '[0-9]*')
+          changed=$(git diff --name-only "$last_tag"..HEAD)
+          non_snapshot=$(
+            git diff --name-only "$last_tag"..HEAD -- ':!mkosi.conf'
+            git diff "$last_tag"..HEAD -- mkosi.conf \
+              | grep -E '^[+-][^+-]' | grep -vE '^[+-]Snapshot=' || true
+          )
+          if [ -z "$non_snapshot" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Weekly release skipped"
+              echo "Changes since \`$last_tag\` go beyond an OS package snapshot bump:"
+              echo '```'
+              echo "$changed"
+              echo '```'
+              echo "Run this workflow manually once they have been reviewed."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - uses: valtzu/gh-action-mkosi-bump@main
+        if: steps.gate.outputs.proceed != 'false'
         with:
           bump-version: 'patch'   # tag the next X.Y.(Z+1); mkosi.version is a git-describe script
           bump-snapshot: 'true'
