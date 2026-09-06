@@ -1,0 +1,17 @@
+[Unit]
+DefaultDependencies=no
+Requires=root-passphrase.socket
+After=root-passphrase.socket
+Wants=modprobe@rpi-crypto-passphrase.service
+After=modprobe@rpi-crypto-passphrase.service
+Before=initrd-switch-root.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+StandardError=journal+console
+ImportCredential=cryptsetup.passphrase
+ExecStart=/usr/lib/systemd/rpi-root-passphrase
+
+# Under QEMU there is no firmware mailbox; the daemon then falls back to the
+# static cryptsetup.passphrase dev credential imported above.

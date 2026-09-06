@@ -1,0 +1,6 @@
+# mkosi runs `systemctl --root=… preset-all` at build time. Because the initrd
+# ships /etc/initrd-release and an initrd-preset/ dir, systemctl reads presets
+# from here and ignores system-preset/ entirely - so this is the only place an
+# `enable` for an initrd unit takes effect.
+enable root-passphrase.socket
+enable root-passphrase-cleanup.service

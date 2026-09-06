@@ -8,6 +8,7 @@ on:
   pull_request:
     paths:
       - 'mkosi.conf'
+      - 'mkosi.build.chroot'
       - 'mkosi.images/**'
       - 'mkosi.profiles/**'
       - 'mkosi.repart/**'

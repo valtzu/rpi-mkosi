@@ -2,6 +2,14 @@ arm_64bit=1
 arm_boost=0
 enable_gic=1
 armstub=RPI_EFI.fd
+# Closes the raw OTP private-key read mailbox for the whole session. The
+# firmware HMAC service rpi-crypto-passphrase derives the passphrase through
+# stays available, as does provisioning the key.
+lock_device_private_key=1
+# 1 on dev images (never touch OTP), 0 on release (first boot generates the
+# device key into the blank slot, then rpi-crypto-passphrase locks it).
+# Substituted by mkosi.images/rootfs/mkosi.finalize.
+lock_device_key_write=@LOCK_DEVICE_KEY_WRITE@
 disable_commandline_tags=2
 disable_overscan=1
 device_tree_address=0x3e0000
@@ -10,8 +18,6 @@ dtparam=sd_poll_once
 dtparam=audio=off
 dtparam=hdmi=off
 dtparam=watchdog=on
-dtparam=nvmem_cust_rw
-dtparam=nvmem_priv_rw
 dtoverlay=disable-bt
 dtoverlay=disable-wifi
 dtoverlay=upstream-pi4
