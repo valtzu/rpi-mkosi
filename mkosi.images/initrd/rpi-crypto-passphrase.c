@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * rpi-crypto-passphrase: minimal bridge to the Raspberry Pi firmware's
- * mailbox crypto service (HMAC-SHA256 + key-status lock), used to derive
- * the root disk's LUKS passphrase without ever exposing the OTP private
- * key itself to Linux, and without keeping the ability to derive it a
- * second time within the same boot.
+ * mailbox crypto service (key generation + HMAC-SHA256 + key-status lock),
+ * used to derive the root disk's LUKS passphrase without ever exposing the
+ * OTP private key itself to Linux, and without keeping the ability to derive
+ * it a second time within the same boot.
+ *
+ * On the first release boot the device key slot is still blank; the module
+ * generates the key (one-time OTP write) and locks it before the first HMAC.
  *
  * Mailbox tag numbers and key-status lock bits are taken from
  * raspberrypi/utils rpifwcrypto.h (BSD-3-Clause), which documents the
@@ -35,11 +38,24 @@ static u32 key_id = 1;
 module_param(key_id, uint, 0444);
 MODULE_PARM_DESC(key_id, "firmware OTP private-key id to HMAC with (default 1)");
 
-#define TAG_GET_CRYPTO_HMAC_SHA256 0x00030092
-#define TAG_SET_CRYPTO_KEY_STATUS  0x00038090
+/*
+ * Generate the device key when the slot is still blank. This is a one-time OTP
+ * write, so it only happens where the firmware still permits it: release images
+ * ship config.txt lock_device_key_write=0, dev images ship =1 (GEN_LOCKED) and
+ * never provision. Set provision=0 to opt out even on release.
+ */
+static bool provision = true;
+module_param(provision, bool, 0444);
+MODULE_PARM_DESC(provision, "generate the device key if the slot is blank and unlocked (default Y)");
+
+#define TAG_GET_CRYPTO_KEY_STATUS    0x00030090
+#define TAG_GET_CRYPTO_HMAC_SHA256   0x00030092
+#define TAG_GET_CRYPTO_GEN_ECDSA_KEY 0x00030095
+#define TAG_SET_CRYPTO_KEY_STATUS    0x00038090
 
 #define VC_MAILBOX_ERROR 0x80000000
 
+#define ARM_CRYPTO_KEY_STATUS_TYPE_DEVICE_PRIVATE_KEY (1 << 0)
 #define ARM_CRYPTO_KEY_STATUS_READ_LOCKED  (1 << 8)
 #define ARM_CRYPTO_KEY_STATUS_GEN_LOCKED   (1 << 9)
 #define ARM_CRYPTO_KEY_STATUS_SIGN_LOCKED  (1 << 10)
@@ -73,6 +89,11 @@ struct rpi_fw_key_status_payload {
 	u32 status;
 };
 
+struct rpi_fw_gen_key_payload {
+	u32 flags;
+	u32 key_id;
+};
+
 static struct rpi_firmware *rpi_fw;
 
 /*
@@ -97,6 +118,65 @@ static void rpi_crypto_lock_key(void)
 		       ret, lock_req.status);
 }
 
+/*
+ * Converge the key slot before deriving:
+ *  - blank slot, generation still permitted -> generate the ECDSA P-256 device
+ *    key (one-time OTP write; only reachable on release images, see the
+ *    provision param);
+ *  - populated slot whose generation/usage aren't locked yet -> lock them so the
+ *    key can never be regenerated or repurposed.
+ * Anything unexpected is logged and left alone - the HMAC step below surfaces
+ * the real error if the slot turns out to be unusable.
+ */
+static void rpi_crypto_provision_key(void)
+{
+	u32 status = key_id;
+	int ret;
+
+	ret = rpi_firmware_property(rpi_fw, TAG_GET_CRYPTO_KEY_STATUS,
+				   &status, sizeof(status));
+	if (ret || (status & VC_MAILBOX_ERROR)) {
+		pr_warn("rpi-crypto-passphrase: key status unavailable (ret=%d status=0x%08x), skipping provisioning\n",
+			ret, status);
+		return;
+	}
+
+	if (!(status & ARM_CRYPTO_KEY_STATUS_TYPE_DEVICE_PRIVATE_KEY)) {
+		struct rpi_fw_gen_key_payload gen = { .key_id = key_id };
+
+		if (!provision)
+			return;
+		if (status & ARM_CRYPTO_KEY_STATUS_GEN_LOCKED) {
+			pr_info("rpi-crypto-passphrase: slot %u blank but key generation is locked\n",
+				key_id);
+			return;
+		}
+
+		ret = rpi_firmware_property(rpi_fw, TAG_GET_CRYPTO_GEN_ECDSA_KEY,
+					   &gen, sizeof(gen));
+		if (ret)
+			pr_err("rpi-crypto-passphrase: key generation failed (ret=%d)\n", ret);
+		else
+			pr_info("rpi-crypto-passphrase: generated device key in slot %u\n", key_id);
+		return;
+	}
+
+	if ((status & (ARM_CRYPTO_KEY_STATUS_GEN_LOCKED | ARM_CRYPTO_KEY_STATUS_USAGE_LOCKED)) !=
+	    (ARM_CRYPTO_KEY_STATUS_GEN_LOCKED | ARM_CRYPTO_KEY_STATUS_USAGE_LOCKED)) {
+		struct rpi_fw_key_status_payload lock_req = {
+			.key_id = key_id,
+			.status = ARM_CRYPTO_KEY_STATUS_GEN_LOCKED |
+				  ARM_CRYPTO_KEY_STATUS_USAGE_LOCKED,
+		};
+
+		ret = rpi_firmware_property(rpi_fw, TAG_SET_CRYPTO_KEY_STATUS,
+					   &lock_req, sizeof(lock_req));
+		if (ret || (lock_req.status & VC_MAILBOX_ERROR))
+			pr_err("rpi-crypto-passphrase: failed to write-lock key (ret=%d status=0x%08x)\n",
+			       ret, lock_req.status);
+	}
+}
+
 static long rpi_crypto_passphrase_ioctl(struct file *file, unsigned int cmd,
 					 unsigned long arg)
 {
@@ -111,6 +191,8 @@ static long rpi_crypto_passphrase_ioctl(struct file *file, unsigned int cmd,
 	/* One HMAC derivation per boot, no exceptions. */
 	if (atomic_cmpxchg(&rpi_crypto_used, 0, 1) != 0)
 		return -EPERM;
+
+	rpi_crypto_provision_key();
 
 	kreq = kzalloc(sizeof(*kreq), GFP_KERNEL);
 	payload = kzalloc(sizeof(*payload), GFP_KERNEL);

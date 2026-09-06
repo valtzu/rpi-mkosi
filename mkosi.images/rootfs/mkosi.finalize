@@ -45,9 +45,17 @@ cat $CACHEDIR/eeprom/rpi-eeprom-digest | sh -s - -i $TMPDIR/pieeprom.upd -o $TMP
 # -N pins the volume serial (else mformat derives it from wall-clock time); the
 # explicit + sorted mcopy order pins the FAT directory layout (mcopy -s recurses
 # in readdir order, which is not stable).
+# Release provisions the OTP device key on first boot and needs the firmware
+# key-write path open; dev must never touch OTP.
+case " $PROFILES " in
+  *" release "*) lock_device_key_write=0 ;;
+  *)             lock_device_key_write=1 ;;
+esac
+sed "s/@LOCK_DEVICE_KEY_WRITE@/$lock_device_key_write/" $SRCDIR/config.txt > $TMPDIR/config.txt
+
 truncate -s 8M $OUTPUTDIR/boot.img
 mformat -i $OUTPUTDIR/boot.img -L 16 -N "$(printf '%08x' "$SOURCE_DATE_EPOCH")" ::
-mcopy -i $OUTPUTDIR/boot.img start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd $SRCDIR/config.txt ::
+mcopy -i $OUTPUTDIR/boot.img start4.elf fixup4.dat bcm2711-rpi-4-b.dtb RPI_EFI.fd $TMPDIR/config.txt ::
 mmd -i $OUTPUTDIR/boot.img ::/overlays
 LC_ALL=C mcopy -i $OUTPUTDIR/boot.img overlays/* ::/overlays/
 mcopy -i $OUTPUTDIR/boot.img $TMPDIR/pieeprom.upd $TMPDIR/pieeprom.sig ::
