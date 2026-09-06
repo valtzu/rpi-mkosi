@@ -2,6 +2,10 @@ arm_64bit=1
 arm_boost=0
 enable_gic=1
 armstub=RPI_EFI.fd
+# Closes the raw OTP private-key read mailbox for the whole session. The
+# firmware HMAC service rpi-crypto-passphrase derives the passphrase through
+# stays available, as does provisioning the key.
+lock_device_private_key=1
 disable_commandline_tags=2
 disable_overscan=1
 device_tree_address=0x3e0000
