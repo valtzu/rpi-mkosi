@@ -24,12 +24,15 @@
  *    cryptsetup retries), so a persistent accept() loop serving the cached
  *    derivation is what makes it work.
  *
- * On Raspberry Pi hardware the passphrase is HMAC-SHA256(static context +
- * root disk's own hardware id) computed by the firmware mailbox via
- * /dev/rpi-crypto-passphrase. Under QEMU (mkosi vm) there is no firmware
- * mailbox and the device never appears; fall back to the static
- * "cryptsetup.passphrase" dev credential set in mkosi.conf's [Runtime]
- * Credentials= and imported by the service unit.
+ * The passphrase is HMAC-SHA256(static context + this board's rpi-machine-id),
+ * computed by the firmware mailbox via /dev/rpi-crypto-passphrase. The
+ * rpi-machine-id is a 32-hex-char per-device identifier the Raspberry Pi
+ * bootloader derives from the OTP serial (+ MAC on Pi 4/5) and publishes in
+ * the device tree at /chosen/rpi-machine-id - stable, unique, and readable
+ * before anything is unlocked. Under QEMU rpi-fw-mock synthesises the
+ * same node. If neither is present (non-Pi, or no mock) we fall back to the
+ * static "cryptsetup.passphrase" dev credential from mkosi.conf's [Runtime]
+ * Credentials=.
  */
 
 #include <ctype.h>
@@ -50,8 +53,7 @@
 
 #define RPI_CRYPTO_DEV "/dev/rpi-crypto-passphrase"
 #define STATIC_CONTEXT "rpi-mkosi/root-luks-passphrase:"
-#define LOADER_PARTUUID_EFIVAR \
-	"/sys/firmware/efi/efivars/LoaderDevicePartUUID-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f"
+#define RPI_MACHINE_ID_DT "/sys/firmware/devicetree/base/chosen/rpi-machine-id"
 
 static unsigned char g_key[64];
 static size_t g_keylen;
@@ -75,152 +77,60 @@ static int write_all(int fd, const void *buf, size_t len)
 	return 0;
 }
 
-/* efivarfs entries are 4 bytes of attributes followed by UTF-16LE data. */
-static int read_loader_partuuid(char *out, size_t outsize)
+/*
+ * The board's rpi-machine-id: a device-tree string property, so the sysfs file
+ * is the 32 hex chars plus a trailing NUL. strlen() therefore stops at 32.
+ */
+static int read_rpi_machine_id(char *out, size_t outsize)
 {
-	unsigned char buf[256];
+	char buf[64];
 	ssize_t n;
-	size_t j = 0;
+	size_t i;
+	int fd;
 
-	int fd = open(LOADER_PARTUUID_EFIVAR, O_RDONLY);
+	if (outsize < 33)
+		return -1;
+
+	fd = open(RPI_MACHINE_ID_DT, O_RDONLY);
 	if (fd < 0)
 		return -1;
-	n = read(fd, buf, sizeof(buf));
+	n = read(fd, buf, sizeof(buf) - 1);
 	close(fd);
-	if (n <= 4)
+	if (n < 32)
 		return -1;
+	buf[n] = '\0';
+	buf[strcspn(buf, "\r\n")] = '\0';
 
-	for (ssize_t i = 4; i + 1 < n && j + 1 < outsize; i += 2) {
-		if (buf[i] == 0)
-			break;
-		out[j++] = (char)tolower(buf[i]);
-	}
-	out[j] = '\0';
-	return j ? 0 : -1;
-}
-
-/* nvme0n1p1 -> nvme0n1, mmcblk0p1 -> mmcblk0, sda1 -> sda */
-static void disk_name_from_partition(char *name)
-{
-	size_t len = strlen(name);
-
-	while (len > 0 && isdigit((unsigned char)name[len - 1]))
-		len--;
-	if (len > 1 && name[len - 1] == 'p' && isdigit((unsigned char)name[len - 2]))
-		len--;
-	name[len] = '\0';
-}
-
-/*
- * LoaderDevicePartUUID identifies the ESP systemd-boot was loaded from, not
- * the root partition - but ESP and root are sibling partitions on the same
- * physical disk in this image (see repart.d/00-esp.conf, 30-root.conf), and
- * a disk name (not a specific partition) is all the caller needs, so this
- * still resolves to the right place.
- */
-static int resolve_boot_disk(char *diskname, size_t diskname_size)
-{
-	char partuuid[64];
-	char path[128];
-	char link[256];
-	ssize_t n;
-	char *base;
-	int tries;
-
-	if (read_loader_partuuid(partuuid, sizeof(partuuid)) != 0)
+	if (strlen(buf) != 32)
 		return -1;
-
-	/* We run before systemd-repart, i.e. before udev has necessarily
-	 * scanned the boot disk and created the by-partuuid symlink. Wait for
-	 * it (slow USB media on a Pi can take a while). */
-	snprintf(path, sizeof(path), "/dev/disk/by-partuuid/%s", partuuid);
-	for (tries = 0; (n = readlink(path, link, sizeof(link) - 1)) < 0; tries++) {
-		if (tries >= 300) {
-			fprintf(stderr, "rpi-root-passphrase: %s never appeared\n", path);
+	for (i = 0; i < 32; i++)
+		if (!isxdigit((unsigned char)buf[i]))
 			return -1;
-		}
-		usleep(200000);
-	}
-	link[n] = '\0';
 
-	base = strrchr(link, '/');
-	base = base ? base + 1 : link;
-	snprintf(diskname, diskname_size, "%.*s", (int)diskname_size - 1, base);
-	disk_name_from_partition(diskname);
-	return 0;
-}
-
-/*
- * udev's ID_SERIAL_SHORT is the one hardware id that resolves across every
- * transport we boot from: the raw MMC serial from the CID for an SD card, the
- * ATA/NVMe serial for a disk, and the USB descriptor serial for a stick - the
- * bare /sys/block/<disk>/device/serial only exists for some of those. Prefer
- * ID_SERIAL_SHORT (raw serial, stable across udev versions); fall back to the
- * composite ID_SERIAL only if the short form is absent.
- */
-static int read_disk_hardware_id(const char *diskname, char *idbuf, size_t idbuf_size)
-{
-	char cmd[256];
-	char line[512];
-	char id_serial[256] = "";
-	char id_serial_short[256] = "";
-	FILE *p;
-
-	snprintf(cmd, sizeof(cmd),
-		 "udevadm info --query=property --name=/dev/%s 2>/dev/null", diskname);
-	p = popen(cmd, "r");
-	if (!p)
-		return -1;
-
-	while (fgets(line, sizeof(line), p)) {
-		line[strcspn(line, "\n")] = '\0';
-		if (!strncmp(line, "ID_SERIAL_SHORT=", 16))
-			snprintf(id_serial_short, sizeof(id_serial_short), "%.*s",
-				 (int)sizeof(id_serial_short) - 1, line + 16);
-		else if (!strncmp(line, "ID_SERIAL=", 10))
-			snprintf(id_serial, sizeof(id_serial), "%.*s",
-				 (int)sizeof(id_serial) - 1, line + 10);
-	}
-	pclose(p);
-
-	if (id_serial_short[0])
-		snprintf(idbuf, idbuf_size, "%s", id_serial_short);
-	else if (id_serial[0])
-		snprintf(idbuf, idbuf_size, "%s", id_serial);
-	else
-		return -1;
-
+	memcpy(out, buf, 33);
 	return 0;
 }
 
 static ssize_t derive_via_firmware(unsigned char *out, size_t outsize)
 {
 	struct rpi_crypto_passphrase_req req = { 0 };
-	char diskname[64];
-	char hwid[256];
+	char machine_id[33];
 	int fd, msglen;
 
 	if (outsize < sizeof(req.hmac))
 		return -1;
 
+	if (read_rpi_machine_id(machine_id, sizeof(machine_id)) != 0) {
+		fprintf(stderr, "rpi-root-passphrase: no valid %s\n", RPI_MACHINE_ID_DT);
+		return -1;
+	}
+
 	fd = open(RPI_CRYPTO_DEV, O_RDWR);
 	if (fd < 0)
 		return -1;
 
-	if (resolve_boot_disk(diskname, sizeof(diskname)) != 0) {
-		fprintf(stderr, "rpi-root-passphrase: failed to resolve boot disk\n");
-		close(fd);
-		return -1;
-	}
-
-	if (read_disk_hardware_id(diskname, hwid, sizeof(hwid)) != 0) {
-		fprintf(stderr, "rpi-root-passphrase: no hardware id for %s\n", diskname);
-		close(fd);
-		return -1;
-	}
-
 	msglen = snprintf((char *)req.message, sizeof(req.message), "%s%s",
-			   STATIC_CONTEXT, hwid);
+			   STATIC_CONTEXT, machine_id);
 	if (msglen < 0 || (size_t)msglen >= sizeof(req.message)) {
 		close(fd);
 		return -1;

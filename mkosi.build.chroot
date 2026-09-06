@@ -23,3 +23,16 @@ EOF
 
 make -j$(nproc) -C $installed_kernel M=$moddir modules
 make -j$(nproc) -C $installed_kernel M=$moddir modules_install INSTALL_MOD_PATH=$DESTDIR INSTALL_MOD_DIR=extra/drivers/misc
+
+# rpi-fw-mock: a kprobe module that fakes the firmware crypto mailbox
+# (raspberrypi,bcm2835-firmware + the GET/SET_CRYPTO_* tags) so
+# rpi-crypto-passphrase can be exercised under QEMU, which has no BCM2711
+# mailbox at all. Shipped in every image but inert unless explicitly loaded via
+# rd.modules_load= from an initrd, and only where there is no real firmware
+# node - see the guards in rpi-fw-mock/rpi-fw-mock.c.
+mockdir=$(mktemp -d)
+cp $SRCDIR/rpi-fw-mock/rpi-fw-mock.c $mockdir/
+echo 'obj-m := rpi-fw-mock.o' > $mockdir/Makefile
+make -j$(nproc) -C $installed_kernel M=$mockdir modules
+make -j$(nproc) -C $installed_kernel M=$mockdir modules_install INSTALL_MOD_PATH=$DESTDIR INSTALL_MOD_DIR=extra/drivers/misc
+rm -rf $mockdir

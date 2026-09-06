@@ -1,5 +1,23 @@
 ## Raspberry Pi 4B + `mkosi` + `systemd`
 
+> [!IMPORTANT]
+> Booting these images on a real Pi is more than a test drive:
+>
+> * The image applies a signed EEPROM self-update — `SIGNED_BOOT` on, the signing
+>   cert enrolled — so the board then only boots firmware/config signed with that
+>   key. Currently reversible (the setup does not yet program the key hash to OTP
+>   or revoke the RPi dev key), but you need the private key to change it back.
+> * **`release`-profile first boot generates this board's device private key in
+>   OTP** — a one-time write, permanent. The encrypted root is then bound to that
+>   key on that board. The default `dev` profile never touches OTP
+>   (`config.txt` ships `lock_device_key_write=1`).
+>
+> The Releases artifacts are signed with CI's key, which you don't have — a Pi
+> flashed with them can only be updated from this repo. To run your own, build
+> locally with your own keys (`mkosi genkey`,
+> [below](#generate-secure-boot-keys)) and keep them safe: lose them and you can
+> no longer update the device. Just trying it out: `mkosi build && mkosi vm`.
+
 Inspired by https://0pointer.net/blog/fitting-everything-together.html 
 
 ### Included in the image
@@ -21,8 +39,9 @@ Inspired by https://0pointer.net/blog/fitting-everything-together.html
 ### On first boot
 
 1. Create encrypted root partition
-   * passphrase derived by the firmware mailbox's crypto service: HMAC-SHA256 of the root
-     disk's own hardware id (udev `ID_SERIAL_SHORT`), using the OTP-provisioned private key
+   * passphrase derived by the firmware mailbox's crypto service: HMAC-SHA256 of the board's
+     `rpi-machine-id` (a per-device id the bootloader hashes from the OTP serial + MAC and
+     publishes at device-tree `/chosen/rpi-machine-id`), using the OTP-provisioned private key
      ([RPi eeprom OTP registry](https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#otp-register-and-bit-definitions)).
      The raw private key never leaves the firmware, and the firmware locks it against further
      use for the rest of the boot right after computing the HMAC. `root-passphrase.socket`

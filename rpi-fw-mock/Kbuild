@@ -1,0 +1,1 @@
+obj-m += rpi-fw-mock.o
