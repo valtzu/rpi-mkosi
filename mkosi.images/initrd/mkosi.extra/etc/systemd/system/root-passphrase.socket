@@ -1,0 +1,14 @@
+# /run/cryptsetup-keys.d/root.key is the path systemd-cryptsetup auto-probes
+# (with socket-connect support) for a volume named "root" - so serving the
+# passphrase from a socket there needs zero drop-in on systemd-cryptsetup@root.
+# systemd-repart connects to the same socket via repart.d KeyFile=.
+[Unit]
+DefaultDependencies=no
+
+[Socket]
+ListenStream=/run/cryptsetup-keys.d/root.key
+SocketMode=0600
+Accept=no
+
+[Install]
+WantedBy=sockets.target

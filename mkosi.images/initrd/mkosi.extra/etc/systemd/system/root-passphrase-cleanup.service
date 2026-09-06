@@ -1,0 +1,17 @@
+# Stop the passphrase daemon before switch-root: it holds the derived key in
+# mlocked memory (SIGTERM makes it wipe and exit), so once both in-initrd
+# consumers have run there is no reason to carry it - or the socket - into the
+# booted system. The firmware OTP key is already locked (side effect of the
+# one derivation), so nothing can re-derive it either way.
+[Unit]
+DefaultDependencies=no
+After=systemd-repart.service systemd-cryptsetup@root.service
+Before=initrd-switch-root.target
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/systemctl stop root-passphrase.service root-passphrase.socket
+ExecStart=-/usr/bin/rm -f /run/cryptsetup-keys.d/root.key
+
+[Install]
+WantedBy=initrd-switch-root.target
