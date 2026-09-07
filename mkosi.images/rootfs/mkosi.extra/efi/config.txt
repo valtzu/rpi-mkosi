@@ -1,0 +1,4 @@
+# This file is mostly needed for first-time-provisioning when the EEPROM does not yet have SIGNED_BOOT enabled, thus boot_ramdisk=1 is not implicit
+boot_ramdisk=1
+enable_uart=1
+uart_2ndstage=1
