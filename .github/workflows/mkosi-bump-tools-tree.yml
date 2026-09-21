@@ -24,4 +24,5 @@ jobs:
           install-mkosi: 'true'
           mkosi-version: 'v27'
           commit-message: 'Bump mkosi tools tree to {{tools_tree_snapshot}}'
+          skip-tag: 'true'   # no version bump here; releases are tagged by mkosi-bump.yml
           dispatch-workflow: 'mkosi.yml'   # a GITHUB_TOKEN-pushed commit doesn't start the build run
