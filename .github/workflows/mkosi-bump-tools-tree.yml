@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
+  actions: write   # for dispatch-workflow
 
 jobs:
   bump:
@@ -23,7 +23,5 @@ jobs:
           bump-tools-tree-snapshot: 'true'
           install-mkosi: 'true'
           mkosi-version: 'v27'
-          pull-request: 'true'   # tools-tree bumps get a review + build first
-          pull-request-branch: 'mkosi-bump-tools-tree'
           commit-message: 'Bump mkosi tools tree to {{tools_tree_snapshot}}'
-          pull-request-title: 'Bump mkosi tools tree to {{tools_tree_snapshot}}'
+          dispatch-workflow: 'mkosi.yml'   # a GITHUB_TOKEN-pushed commit doesn't start the build run
