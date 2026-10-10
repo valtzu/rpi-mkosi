@@ -1,0 +1,20 @@
+name: "image-boot"
+description: "pieeprom.bin boots the built image's ESP: start4.elf hands the ARM to RPI_EFI.fd."
+
+boot:
+  eeprom: "../../cache/eeprom/pieeprom.bin"
+  bootconf: ["BOOT_UART=1"]
+  usb: "../../mkosi.output/system.raw"
+  until: "Booting Linux on physical CPU"
+  wall_secs: 1800
+
+milestones:
+  - why: "The bootloader found the image's ESP and loaded the UEFI armstub from it."
+    line: "Loaded 'RPI_EFI.fd'"
+  - why: "UEFI itself started."
+    line: "UEFI firmware (version"
+  - why: "UEFI booted the UKI and the kernel started."
+    line: "Booting Linux on physical CPU"
+  - why: "No unknown VPU instruction."
+    line: "Unimplemented"
+    absent: true
