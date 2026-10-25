@@ -29,7 +29,7 @@ jobs:
         # review and cut it - skip the auto-release and let workflow_dispatch
         # handle it.
         run: |
-          last_tag=$(git describe --tags --abbrev=0 --match '[0-9]*')
+          last_tag=$(git tag --list '[0-9]*' --sort=-v:refname | head -n1)
           changed=$(git diff --name-only "$last_tag"..HEAD)
           non_snapshot=$(
             git diff --name-only "$last_tag"..HEAD -- ':!mkosi.conf'
